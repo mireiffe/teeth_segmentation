@@ -5,7 +5,7 @@ import cv2
 class Reinitial():
     eps = np.finfo(float).eps
 
-    def __init__(self, img:np.ndarray, dt:float=0.1, width:float=5, tol:float=1E-02, iter:int=None, dim:int=2, debug=False) -> np.ndarray:
+    def __init__(self, dt:float=0.1, width:float=5, tol:float=1E-02, iter:int=None, dim:int=2, debug=False) -> np.ndarray:
         '''
         This function make a signed distance function by doing the re-initialization.
         Everything is based on the sussman's paper(1994), but this contains additional 3D implementation.
@@ -14,8 +14,6 @@ class Reinitial():
         Re-initialization equation: `u_t = sign(u)(1 - |nabla{u}|)`
 
         ## Inputs
-        - img: numpy array like,\n
-            Negative parts are considered as the region of interest.
         - dt: scalar, a step size
         - width: scalar, 5 (default)\n
             Numerical error will be computed in region R, R:={x : abs(img(x)) < width}. If None, R = whole domain.
@@ -35,18 +33,24 @@ class Reinitial():
         Journal of Computational Physics, Volume 114, Issue 1, 1994, Pages 146-159.
         https://doi.org/10.1006/jcph.1994.1155
         '''
-        self.img = img
         self.wid = width
         self.dt = dt
         self.tol = tol
         self.dim = dim
         self.iter = iter
         self.debug = debug
-        self.sign0 = np.sign(self.img)
 
-    def getSDF(self):
+    def getSDF(self, img):
+        '''
+        A main function
+
+        ## Inputs
+        - img: numpy array like,\n
+            Negative parts are considered as the region of interest.
+        '''
+        self.sign0 = np.sign(img)
         _k = 1
-        phi = np.copy(self.img)
+        phi = np.copy(img)
         while True:
             _k += 1
             new_phi = self.update(phi)
