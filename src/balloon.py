@@ -80,6 +80,7 @@ class Balloon():
 
     def update(self, phis, mu=.01):
         if np.ndim(phis) < 3:
+            phis = np.expand_dims(phis, axis=2)
         fb = self.force_balloon(phis, mu)
         fa = self.force_gadf(phis)
         _phis = phis + self.dt * fb
