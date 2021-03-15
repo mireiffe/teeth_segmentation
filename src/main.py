@@ -36,13 +36,6 @@ if __name__=='__main__':
 
     bln = Balloon(args.num_img, er, radii='auto', dt=0.3)
 
-    oer = bln.loadFile(join(bln.dir_img, f"{bln.num_img:05d}.pth"))['label_er']
-
-    plt.figure()
-    plt.imshow(bln.img, 'gray')
-    # plt.imshow(oer, alpha=.3, cmap='Reds')
-    plt.show()
-
     # # Set up formatting for the movie files
     # Writer = animation.writers['ffmpeg']
     # writer = Writer(fps=15, metadata=dict(artist='Me'), bitrate=1800)

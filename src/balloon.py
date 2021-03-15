@@ -80,7 +80,6 @@ class Balloon():
 
     def update(self, phis, mu=.01):
         if np.ndim(phis) < 3:
-            phis = np.expand_dims(phis, axis=2)
         fb = self.force_balloon(phis, mu)
         fa = self.force_gadf(phis)
         _phis = phis + self.dt * fb
@@ -89,26 +88,41 @@ class Balloon():
     def kappa(self, phis, ksz=1, h=1, mode=0):
         x, y = self.imgrad(phis)
         if mode == 0:
-            ng = np.sqrt(x**2 + y**2 + self.eps**2)
+            ng = np.sqrt(x**2 + y**2 + self.eps)
             nx, ny = x / ng, y / ng
             xx, _ = self.imgrad(nx)
             _, yy = self.imgrad(ny)
             return xx + yy
         elif mode == 1:
-            ###### imple!!!!!!!!!! ###########
-            xx = self.imgrad(phis, 2, 0, ksz) / h ** 2
-            yy = self.imgrad(phis, 0, 2, ksz) / h ** 2
-            xy = self.imgrad(phis, 1, 1, ksz) / h ** 2
+            xx, yy, xy = self.imgrad(phis, order=2)
             res_den = xx * y * y - 2 * x * y * xy + yy * x * x
             res_num = np.power(x ** 2 + y ** 2, 1.5)
             return res_den / (res_num + self.eps)
 
     @staticmethod
-    def imgrad(img) -> np.ndarray:
-        # ksize = 1: central, ksize = 3: sobel, ksize = -1:scharr
-        gx = cv2.Sobel(img, -1, 1, 0, ksize=1, borderType=cv2.BORDER_REFLECT)
-        gy = cv2.Sobel(img, -1, 0, 1, ksize=1, borderType=cv2.BORDER_REFLECT)
-        return gx / 2, gy / 2
+    def imgrad(img, order=1, h=1) -> np.ndarray:
+        '''
+        central difference
+        '''
+        if order == 1:
+            _x_ = img[:, 2:, ...] - img[:, :-2, ...]
+            x_ = img[:, 1:2, ...] - img[:, :1, ...]
+            _x = img[:, -1:, ...] - img[:, -2:-1, ...]
+
+            _y_ = img[2:, :, ...] - img[:-2, :, ...]
+            y_ = img[1:2, :, ...] - img[:1, :, ...]
+            _y = img[-1:, :, ...] - img[-2:-1, :, ...]
+
+            gx = np.concatenate((x_, _x_, _x), axis=1)
+            gy = np.concatenate((y_, _y_, _y), axis=0)
+            return gx / (2 * h), gy / (2 * h)
+        elif order == 2:
+            _img = np.pad(img, (1, 1), mode='symmetric')
+
+            gxx = img[:, 2:, ...] + img[:, :-2, ...] - 2 * img[:, 1:-1, ...]
+            gyy = img[2:, :, ...] + img[:-2, :, ...] - 2 * img[1:-1, :, ...]
+            gxy = img[2:, 2:, ...] + img[:-2, :-2, ...] - img[2:, :-2, ...] - img[:-2, 2:, ...]
+            return gxx / (h * h), gyy / (h * h), gxy / (4 * h * h)
 
     @staticmethod
     def directInterp(img: np.ndarray, direct:tuple or list, mag=1) -> np.ndarray:
