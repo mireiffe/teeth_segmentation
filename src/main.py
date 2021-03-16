@@ -1,4 +1,3 @@
-import os
 from os.path import join
 import argparse
 
@@ -32,19 +31,15 @@ if __name__=='__main__':
     args = get_args()
 
     # get edge regions from network
-    # edrg = EdgeRegion(args.path_cfg, args.num_img)
-    # er = edrg.getEr()
+    edrg = EdgeRegion(args.path_cfg, args.num_img)
+    er = edrg.getEr()
 
-    if args.num_img == -1:
-        _sz = 128, 128
-        _c = 64, 64
-        _r = 20
-        [X, Y] = np.indices((_sz[0], _sz[1]))
-        cdt1 = (X - _c[0])**2 + (Y - _c[1])**2 < _r**2
-        cdt2 = (X - _c[0])**2 + (Y - _c[1])**2 >= (_r - 2)**2
-        er = np.where(cdt1 * cdt2, 0, 0)
+    bln = Balloon(args.num_img, er, radii='auto', dt=0.3)
 
-    bln = Balloon(args.num_img, er, wid=5, radii='auto', dt=0.3)
+    # # Set up formatting for the movie files
+    # Writer = animation.writers['ffmpeg']
+    # writer = Writer(fps=15, metadata=dict(artist='Me'), bitrate=1800)
+
     phis = bln.phis0
 
     fig, ax = bln.setFigure(phis)
@@ -52,24 +47,17 @@ if __name__=='__main__':
     mng.window.showMaximized()
     _k = 0
     while True:
-        _vis = _k % 10 == 0
-        _save = _k % 1 == 0
-
         _k += 1
-        _reinit = _k % 5 == 0
+        _vis = _k % 10 == 0
+        _save = _k % 5 == 0
+        _reinit = _k % 1 == 0
 
         new_phis = bln.update(phis)
         print(f"\riteration: {_k}", end='')
 
         if _save or _vis:
             bln.drawContours(_k, phis, ax)
-            _dir = join(dir_save, 'test2_width5')
-            try:
-                os.mkdir(_dir)
-                print(f"Created save directory {_dir}")
-            except OSError:
-                pass
-            if _save: plt.savefig(join(_dir, f"test{_k:04d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+            if _save: plt.savefig(join(dir_save, *['test3', f"test{_k:04d}.png"]))
             if _vis: plt.pause(1)
         
         err = np.abs(new_phis - phis).sum() / np.ones_like(phis).sum()
@@ -77,7 +65,6 @@ if __name__=='__main__':
             break
 
         if _reinit:
-            new_phis = np.where(new_phis < 0, -1., 1.)
             new_phis = bln.reinit.getSDF(new_phis)
         phis = new_phis
 
