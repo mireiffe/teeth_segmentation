@@ -35,14 +35,14 @@ if __name__=='__main__':
     # edrg = EdgeRegion(args.path_cfg, args.num_img)
     # er = edrg.getEr()
 
-    if args.num_img == -1:
+    if args.num_img < 0:
         _sz = 128, 128
         _c = 64, 64
         _r = 20
         [X, Y] = np.indices((_sz[0], _sz[1]))
         cdt1 = (X - _c[0])**2 + (Y - _c[1])**2 < _r**2
         cdt2 = (X - _c[0])**2 + (Y - _c[1])**2 >= (_r - 2)**2
-        er = np.where(cdt1 * cdt2, 0, 0)
+        er = np.where(cdt1 * cdt2, 1., 0.)
 
     bln = Balloon(args.num_img, er, wid=5, radii='auto', dt=0.3)
     phis = bln.phis0
@@ -52,7 +52,7 @@ if __name__=='__main__':
     mng.window.showMaximized()
     _k = 0
     while True:
-        _vis = _k % 10 == 0
+        _vis = _k % 3 == 0
         _save = _k % 1 == 0
 
         _k += 1
@@ -63,7 +63,7 @@ if __name__=='__main__':
 
         if _save or _vis:
             bln.drawContours(_k, phis, ax)
-            _dir = join(dir_save, 'test2_width5')
+            _dir = join(dir_save, 'test_kap_er_width5')
             try:
                 os.mkdir(_dir)
                 print(f"Created save directory {_dir}")

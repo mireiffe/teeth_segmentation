@@ -27,7 +27,7 @@ class Balloon():
         if wid % 2 == 0:
             raise NameError('wid must be an odd number')
 
-        inits = np.expand_dims(self.getInitials(), axis=-1)
+        inits = self.getInitials()
 
         self.reinit = Reinitial(dt=.1, width=None, tol=.001, iter=None, dim=2)
         self.phis0 = self.reinit.getSDF(inits)
@@ -42,16 +42,28 @@ class Balloon():
         # get initial seeds
         with open(self.dir_cfg) as f:
             seeds = yaml.load(f, Loader=yaml.FullLoader)[f"T{self.num_img:05d}"]
-        seed_teeth = seeds['teeth']
-        y, x = self.er.shape[:2]
-        Y, X = np.indices([y, x])
+        if 'circles' in seeds:
+            rad_c = seeds['circles'][0]
+            Y, X = np.indices([4 * rad_c, 4 * rad_c])
+            cen_pat = 2 * rad_c - .5
+            pat = np.where((X - cen_pat)**2 + (Y - cen_pat)**2 < rad_c**2, -1., 1.)
 
-        self.radii = 20
+            y, x = self.er.shape[:2]
+            py, px = y - 4 * rad_c, x - 4 * rad_c
 
-        _init = sum([np.where((X-sd[0])**2 + (Y-sd[1])**2 < self.radii**2, 1, 0) 
-                for _i, sd in enumerate(seed_teeth)])
-        _init = np.where(_init > 0, -1., 1)
-        return _init
+            _init = np.pad(pat, ((py // 2, py - py // 2), (px // 2, px - px // 2)), mode='symmetric')
+        else:
+            seed_teeth = seeds['teeth']
+            y, x = self.er.shape[:2]
+            Y, X = np.indices([y, x])
+
+            self.radii = 20
+
+            _init = sum([np.where((X-sd[0])**2 + (Y-sd[1])**2 < self.radii**2, 1, 0) 
+                    for _i, sd in enumerate(seed_teeth)])
+            _init = np.where(_init > 0, -1., 1.)
+        _init = np.expand_dims(_init, axis=-1)
+        return np.where(self._er < .5, _init, 1.)
 
     @staticmethod
     def gaussfilt(img, sig=2, ksz=None, bordertype=cv2.BORDER_REFLECT):
@@ -60,20 +72,20 @@ class Balloon():
         return cv2.GaussianBlur(img, ksz, sig, borderType=bordertype)
 
     # ballooon inflating cores
-    def force(self, phis, ng, skltn=.5):
-        _R = cv2.dilate(np.where(ng < skltn, 1., 0.), np.ones((self.wid, self.wid)), iterations=1)
+    def force(self, phis, ng, skltn=.8):
+        _R = cv2.dilate(np.where((ng < skltn) * (phis > 0), 1., 0.), np.ones((self.wid, self.wid)), iterations=1)
         _f = np.where(_R, 1., -1.)
         g_f = self.gaussfilt(_f, sig=2)
         return np.expand_dims(g_f, axis=-1)
 
-    def update(self, phis, mu=.01):
+    def update(self, phis, mu=.1):
         if np.ndim(phis) < 3:
             phis = np.expand_dims(phis, axis=2)
         kp, ng = self.kappa(phis, mode=0)
         fb = self.force(phis, ng)
         
         _f = mu * kp + fb
-        _phis = phis + self.dt * _f
+        _phis = phis + self.dt * _f * (1 - self._er)
         return _phis
 
     def kappa(self, phis, ksz=1, h=1, mode=0):
