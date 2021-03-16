@@ -1,3 +1,4 @@
+from os import error
 from os.path import join
 import yaml
 import pickle
@@ -16,20 +17,19 @@ class Balloon():
     dir_cfg = 'cfg/info_initial.yml'
     dir_img = '/home/users/mireiffe/Documents/Python/TeethSeg/data/er_less'
 
-    def __init__(self, num_img:int, er:np.ndarray, radii='auto', dt:float=0.1):
+    def __init__(self, num_img:int, er:np.ndarray, wid:int, radii='auto', dt:float=0.1):
         self.num_img = num_img
         self.er = er
         self._er = np.expand_dims(np.where(er > .5, 1., 0.), axis=2)
         self.radii = radii
         self.dt = dt
+        self.wid = wid
+        if wid % 2 == 0:
+            raise NameError('wid must be an odd number')
 
-        self.img = self.loadFile(join(self.dir_img, f"{self.num_img:05d}.pth"))['img']
-        proc = Processing(self.img)
-        self.fa = proc.gadf()
+        inits = np.expand_dims(self.getInitials(), axis=-1)
 
-        inits = np.transpose(self.getInitials(), (1, 2, 0))
-
-        self.reinit = Reinitial(dt=.1, width=5, tol=.01, iter=None, dim=2)
+        self.reinit = Reinitial(dt=.1, width=None, tol=.001, iter=None, dim=2)
         self.phis0 = self.reinit.getSDF(inits)
 
     @staticmethod
@@ -43,47 +43,37 @@ class Balloon():
         with open(self.dir_cfg) as f:
             seeds = yaml.load(f, Loader=yaml.FullLoader)[f"T{self.num_img:05d}"]
         seed_teeth = seeds['teeth']
-        seed_gums = seeds['gums']
-
-        y, x = self.img.shape[:2]
+        y, x = self.er.shape[:2]
         Y, X = np.indices([y, x])
 
-        if self.radii=='auto':
-            self.radii = (y + x) // 150
+        self.radii = 20
 
-        _init = []
-        _init_1 = sum([np.where((X-sd[0])**2 + (Y-sd[1])**2 < self.radii**2, 1, 0) 
-                for _i, sd in enumerate(seed_teeth) if _i % 2 == 0])
-        _init.append(-_init_1 + .5)
-        _init_2 = sum([np.where((X-sd[0])**2 + (Y-sd[1])**2 < self.radii**2, 1, 0) 
-                for _i, sd in enumerate(seed_teeth) if _i % 2 != 0])
-        _init.append(-_init_2 + .5)
-        _gums = sum([np.where((X-sd[0])**2 + (Y-sd[1])**2 < self.radii**2, 1, 0) for sd in seed_gums])
-        _init.append(-_gums + .5)
+        _init = sum([np.where((X-sd[0])**2 + (Y-sd[1])**2 < self.radii**2, 1, 0) 
+                for _i, sd in enumerate(seed_teeth)])
+        _init = np.where(_init > 0, -1., 1)
         return _init
 
-    # ballooon inflating cores
-    def force_balloon(self, phis, mu):
-        _kp = self.kappa(phis)
-        if np.ndim(_kp) < 3:
-            _kp = np.expand_dims(_kp, axis=2)
-        _f = mu * _kp - (4 * (.5 - self._er))
-        return _f
+    @staticmethod
+    def gaussfilt(img, sig=2, ksz=None, bordertype=cv2.BORDER_REFLECT):
+        if ksz is None:
+            ksz = ((2 * np.ceil(2 * sig) + 1).astype(int), (2 * np.ceil(2 * sig) + 1).astype(int))
+        return cv2.GaussianBlur(img, ksz, sig, borderType=bordertype)
 
-    def force_gadf(self, phis):
-        gx, gy = self.imgrad(phis)
-        if np.ndim(gx) < 3:
-            gx = np.expand_dims(gx, axis=2)
-            gy = np.expand_dims(gy, axis=2)
-        _f = - self._er * (self.fa[..., 0:1] * gx + self.fa[..., 1:2] * gy)
-        return _f
+    # ballooon inflating cores
+    def force(self, phis, ng, skltn=.5):
+        _R = cv2.dilate(np.where(ng < skltn, 1., 0.), np.ones((self.wid, self.wid)), iterations=1)
+        _f = np.where(_R, 1., -1.)
+        g_f = self.gaussfilt(_f, sig=2)
+        return np.expand_dims(g_f, axis=-1)
 
     def update(self, phis, mu=.01):
         if np.ndim(phis) < 3:
             phis = np.expand_dims(phis, axis=2)
-        fb = self.force_balloon(phis, mu)
-        fa = self.force_gadf(phis)
-        _phis = phis + self.dt * fb
+        kp, ng = self.kappa(phis, mode=0)
+        fb = self.force(phis, ng)
+        
+        _f = mu * kp + fb
+        _phis = phis + self.dt * _f
         return _phis
 
     def kappa(self, phis, ksz=1, h=1, mode=0):
@@ -93,7 +83,7 @@ class Balloon():
             nx, ny = x / ng, y / ng
             xx, _ = self.imgrad(nx)
             _, yy = self.imgrad(ny)
-            return xx + yy
+            return xx + yy, ng
         elif mode == 1:
             xx, yy, xy = self.imgrad(phis, order=2)
             res_den = xx * y * y - 2 * x * y * xy + yy * x * x
@@ -118,11 +108,11 @@ class Balloon():
             gy = np.concatenate((y_, _y_, _y), axis=0)
             return gx / (2 * h), gy / (2 * h)
         elif order == 2:
-            _img = np.pad(img, (1, 1), mode='symmetric')
+            _img = np.pad(img, ((1, 1), (1, 1), (0, 0)), mode='symmetric')
 
-            gxx = img[:, 2:, ...] + img[:, :-2, ...] - 2 * img[:, 1:-1, ...]
-            gyy = img[2:, :, ...] + img[:-2, :, ...] - 2 * img[1:-1, :, ...]
-            gxy = img[2:, 2:, ...] + img[:-2, :-2, ...] - img[2:, :-2, ...] - img[:-2, 2:, ...]
+            gxx = _img[1:-1, 2:, ...] + _img[1:-1, :-2, ...] - 2 * _img[1:-1, 1:-1, ...]
+            gyy = _img[2:, 1:-1, ...] + _img[:-2, 1:-1, ...] - 2 * _img[1:-1, 1:-1, ...]
+            gxy = _img[2:, 2:, ...] + _img[:-2, :-2, ...] - _img[2:, :-2, ...] - _img[:-2, 2:, ...]
             return gxx / (h * h), gyy / (h * h), gxy / (4 * h * h)
 
     @staticmethod
@@ -192,3 +182,11 @@ class Balloon():
             self.contours.append(axis.contour(phis[..., i], levels=[0], colors=cm))
             axis.set_title(f"k = {state}")
         return self.contours
+
+    @staticmethod
+    def _show(wandtoshow, contour=None):
+        plt.figure()
+        plt.imshow(wandtoshow)
+        if contour is not None:
+            plt.contour(contour, levels=[0], colors='red')
+        plt.show()
