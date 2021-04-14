@@ -2,6 +2,7 @@ import os
 from os.path import join
 import argparse
 
+import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -47,13 +48,22 @@ if __name__=='__main__':
         er = np.where(cdt1 * cdt2, 1., 0.)
         er = np.where(((Y - _c[1]) - np.tan(ang) * (X - _c[0]) < 0) * ((Y - _c[1]) + np.tan(ang) * (X - _c[0])) > 0, 0., er)
 
+        er_ = np.zeros_like(er)
+        # for x in zip(range(61, 67), range(61, 67)):
+        #     er_[x[0], x[1]] = 1
+        # for x in zip(range(62, 68), range(61, 67)):
+        #     er_[x[0], x[1]] = 1
+        # er_ = cv2.dilate(er_, np.ones((3, 3)), iterations=1)
+        
+        er = er + er_
+
     bln = Balloon(args.num_img, er, wid=5, radii='auto', dt=0.3)
     phis = bln.phis0
 
     # FOR TEST!!!!!!!!!!!!!!
-    inits = bln.getInitials()
-    inits = np.expand_dims(np.where((X - 84)**2 + (Y-64)**2 < 10**2, 1., inits[..., 0]), axis=-1)
-    phis = bln.reinit.getSDF(inits)
+    # inits = bln.getInitials()
+    # inits = np.expand_dims(np.where((X - 84)**2 + (Y-64)**2 < 10**2, 1., inits[..., 0]), axis=-1)
+    # phis = bln.reinit.getSDF(inits)
     # END!!!!!!!!!!!!!!!!!
 
     fig, ax = bln.setFigure(phis)
@@ -61,8 +71,8 @@ if __name__=='__main__':
     mng.window.showMaximized()
     _k = 0
     while True:
-        _vis = _k % 5 == 0
-        _save = _k % 1 == 1
+        _vis = _k % 10 == 0
+        _save = _k % 1 == 0
 
         _k += 1
         _reinit = _k % 5 == 0
@@ -79,7 +89,7 @@ if __name__=='__main__':
             except OSError:
                 pass
             if _save: plt.savefig(join(_dir, f"test{_k:04d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-            if _vis: plt.pause(1)
+            if _vis: plt.pause(.1)
         
         err = np.abs(new_phis - phis).sum() / np.ones_like(phis).sum()
         if err < tol:

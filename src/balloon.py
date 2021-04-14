@@ -56,7 +56,8 @@ class Balloon():
             y, x = self.er.shape[:2]
             py, px = y - 4 * rad_c, x - 4 * rad_c
 
-            _init = np.pad(pat, ((py // 2, py - py // 2), (px // 2, px - px // 2)), mode='symmetric')
+            gap = 2
+            _init = np.pad(pat, ((py // gap, py - py // gap), (px // gap, px - px // gap)), mode='symmetric')
         else:
             seed_teeth = seeds['teeth']
             y, x = self.er.shape[:2]
