@@ -1,13 +1,14 @@
 import numpy as np
 import cv2
+import matplotlib.pyplot as plt
 
 
 class Reinitial():
     eps = np.finfo(float).eps
 
-    def __init__(self, dt:float=0.1, width:float=5, tol:float=1E-02, iter:int=None, dim:int=2, debug=False) -> np.ndarray:
+    def __init__(self, dt:float=0.01, width:float=5, tol:float=1E-02, iter:int=None, dim:int=2, debug=False, _rr=False) -> np.ndarray:
         '''
-        This function make a signed distance function by doing the re-initialization.
+        This function makes a signed distance function by doing the re-initialization.
         Everything is based on the sussman's paper(1994), but this contains additional 3D implementation.
         https://github.com/mireiffe/reinitialization
 
@@ -39,8 +40,9 @@ class Reinitial():
         self.dim = dim
         self.iter = iter
         self.debug = debug
+        self._rr = _rr
 
-    def getSDF(self, img):
+    def getSDF(self, img, _r=None):
         '''
         A main function
 
@@ -48,9 +50,22 @@ class Reinitial():
         - img: numpy array like,\n
             Negative parts are considered as the region of interest.
         '''
+        if self._r == None:
+            self._r = np.ones_like(img)
+        else:
+            self._r = _r
         self.sign0 = np.sign(img)
+        self._sign0 = self.approx_sign(img)
         _k = 1
         phi = np.copy(img)
+        if self.debug:
+            self.vlim = [(53, 73), (73, 93)]
+            self.vlim = [(0, 5), (0, 5)]
+            fig = plt.figure()
+            self.ax1 = fig.add_subplot(121)
+            self.ax2 = fig.add_subplot(122)
+            mng = plt.get_current_fig_manager()
+            mng.window.showMaximized()
         while True:
             _k += 1
             new_phi = self.update(phi)
@@ -66,6 +81,10 @@ class Reinitial():
                 err = (np.abs(new_phi - phi) * reg_err).sum() / (reg_err.sum() + self.eps)
                 if self.debug:
                     print(f"\rk = {_k}, error = {err / self.dt:.6f}", end='')
+                    self.ax1.set_title(f"PHI{_k-1:d}")
+                    self.ax2.set_title(f"-SGN(PHI) * G{_k-1:d}")
+                    plt.pause(.1)
+                    # plt.savefig('results/test/' + f"test{_k-2:04d}.png", dpi=200, bbox_inches='tight', facecolor='#eeeeee')
                 if err < self.tol * self.dt:
                     break
             phi = np.copy(new_phi)
@@ -98,7 +117,31 @@ class Reinitial():
         
         # for numerical stabilities, sign should be updated
         _sign0 = self.approx_sign(phi)
-        _phi = phi - self.dt * _sign0 * _G
+        if self._rr:
+            _f = -_sign0 * _G
+            _phi = phi - self.dt * _sign0 * _G
+        else:
+            _f = -self._sign0 * _G
+            _phi = phi + self.dt * _f
+
+        if self.debug:
+            self.ax1.cla()
+            self.ax1.imshow(phi)
+            self.ax1.contour(phi, levels=[0], colors='red')
+            
+            for i in range(self.vlim[1][1] - self.vlim[1][0]):
+                for j in range(self.vlim[0][1] - self.vlim[0][0]):
+                    if np.abs(self._r[i, j]) < 2:
+                        _v = np.round(phi[i, j], 1)
+                        self.ax1.text(j, i, _v, fontsize=8, color='red', ha='center', va='center', clip_on=True)
+            self.ax2.cla()
+            self.ax2.imshow(_f)
+            self.ax2.contour(phi, levels=[0], colors='red')
+            for i in range(self.vlim[1][1] - self.vlim[1][0]):
+                for j in range(self.vlim[0][1] - self.vlim[0][0]):
+                    if np.abs(self._r[i, j]) < 2:
+                        _v = np.round(_f[i, j], 1)
+                        self.ax2.text(j, i, _v, fontsize=8, color='red', ha='center', va='center', clip_on=True)
         return _phi
 
     @staticmethod
@@ -145,4 +188,3 @@ class Reinitial():
             bz = np.concatenate((zz, _d[2]), axis=2)
             fz = np.concatenate((_d[2], zz), axis=2)
             return [bx, by, bz], [fx, fy, fz]
-        
