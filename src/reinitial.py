@@ -50,7 +50,7 @@ class Reinitial():
         - img: numpy array like,\n
             Negative parts are considered as the region of interest.
         '''
-        if self._r == None:
+        if _r == None:
             self._r = np.ones_like(img)
         else:
             self._r = _r
@@ -84,10 +84,12 @@ class Reinitial():
                     self.ax1.set_title(f"PHI{_k-1:d}")
                     self.ax2.set_title(f"-SGN(PHI) * G{_k-1:d}")
                     plt.pause(.1)
-                    # plt.savefig('results/test/' + f"test{_k-2:04d}.png", dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+                    plt.savefig('results/test/' + f"test{_k-2:04d}.png", dpi=200, bbox_inches='tight', facecolor='#eeeeee')
                 if err < self.tol * self.dt:
                     break
             phi = np.copy(new_phi)
+            # if _k > 76:
+                # pass
         return new_phi
 
     def update(self, phi):
@@ -132,7 +134,7 @@ class Reinitial():
             for i in range(self.vlim[1][1] - self.vlim[1][0]):
                 for j in range(self.vlim[0][1] - self.vlim[0][0]):
                     if np.abs(self._r[i, j]) < 2:
-                        _v = np.round(phi[i, j], 1)
+                        _v = np.round(phi[i, j], 2)
                         self.ax1.text(j, i, _v, fontsize=8, color='red', ha='center', va='center', clip_on=True)
             self.ax2.cla()
             self.ax2.imshow(_f)
@@ -140,7 +142,7 @@ class Reinitial():
             for i in range(self.vlim[1][1] - self.vlim[1][0]):
                 for j in range(self.vlim[0][1] - self.vlim[0][0]):
                     if np.abs(self._r[i, j]) < 2:
-                        _v = np.round(_f[i, j], 1)
+                        _v = np.round(_f[i, j], 2)
                         self.ax2.text(j, i, _v, fontsize=8, color='red', ha='center', va='center', clip_on=True)
         return _phi
 

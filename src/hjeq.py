@@ -116,14 +116,16 @@ if __name__ == '__main__':
     # er = np.where(er < .5, 1., 0.)
 
     er = np.zeros((5, 5))
-    er[2, :2] = 1
+    er[2, :3] = 1
+    er[1, :2] = 1
+    er[3, :3] = 1
 
     dir_save = '/home/users/mireiffe/Documents/Python/TeethSeg/results'
     _dir = join(dir_save, 'test')
     def hvsd(x, eps=.1):
         return .5 * (1 + 2 / np.pi * np.arctan(x / eps))
 
-    rein = Reinitial(debug=True)
+    rein = Reinitial(debug=True, _rr=True)
     # __rein = Reinitial(debug=False, _rr=True)
     COH = Coherent(sig=1, rho=10)
 
