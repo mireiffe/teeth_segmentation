@@ -208,7 +208,7 @@ if __name__ == '__main__':
             # plt.quiver(X, Y, Tx, Ty, angles='xy', scale_units='xy', scale=1, color='blue')
             plt.pause(.5)
             # plt.show()
-            plt.savefig(join(_dir, f"test{k + kk*iter:04d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+            # plt.savefig(join(_dir, f"test{k + kk*iter:04d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
         er = cv2.dilate(np.where(ek > .5, 1., 0.), np.ones((3,3)), iterations=1)
 
     # plt.figure()
