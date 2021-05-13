@@ -2,6 +2,7 @@ from os.path import join
 
 from skimage.morphology import skeletonize
 import numpy as np
+import pickle
 import cv2
 import matplotlib.pyplot as plt
 
@@ -79,6 +80,16 @@ class Coherent():
             ng = np.sqrt(x**2 + y**2 + self.eps)        # just for output
             return res_den / (res_num + self.eps), x, y, ng
 
+def loadFile(path):
+    with open(path, 'rb') as f:
+        dict = pickle.load(f)
+    return dict
+
+def saveFile(dict, path):
+    with open(path, 'wb') as f:
+        pickle.dump(dict, f)
+    return 0
+
 
 if __name__ == '__main__':
     _sz = 128, 128
@@ -104,18 +115,24 @@ if __name__ == '__main__':
     
     er = er + er_
 
-    # er = plt.imread('/home/users/mireiffe/Documents/Python/TeethSeg/data/images/er1.png').mean(axis=-1)
-    # er = np.where(er < .5, 1., 0.)
+    er = plt.imread('/home/users/mireiffe/Documents/Python/TeethSeg/data/images/er1.png').mean(axis=-1)
+    er = np.where(er < .5, 1., 0.)
+
+    # T00001
+    er = loadFile('/home/users/mireiffe/Documents/Python/TeethSeg/data/T00001.pck')
+    er = np.where(er > .5, 1., 0.)
 
     dir_save = '/home/users/mireiffe/Documents/Python/TeethSeg/results'
     _dir = join(dir_save, 'test')
     def hvsd(x, eps=.1):
         return .5 * (1 + 2 / np.pi * np.arctan(x / eps))
 
+
+    _sz = er.shape
     rein = Reinitial()
     COH = Coherent(sig=1, rho=10)
 
-    for kk in range(3):
+    for kk in range(5):
         psi = rein.getSDF(.5 - er)
 
 
@@ -124,7 +141,10 @@ if __name__ == '__main__':
         ec = np.where((ng < .75) * (er > .5), 1., 0.)
         ek = skeletonize(ec)
 
-        k = 0
+        _psi = rein.getSDF(.5 - ek)
+        _gx, _gy = COH.imgrad(_psi)
+        _ng = np.sqrt(_gx ** 2 + _gy ** 2)
+
         fig = plt.figure()
         ax = fig.add_subplot(111)
 
@@ -136,88 +156,80 @@ if __name__ == '__main__':
 
         mng = plt.get_current_fig_manager()
         mng.window.showMaximized()
-        while True:
-                
-            # find end points
-            ind_ek = np.where(ek > .5)
-            end_ek = np.zeros_like(ek)
-            ind_cv = []
-            for iy, ix in zip(*ind_ek):
-                if ek[iy - 1:iy + 2, ix - 1:ix + 2].sum() < 3:
-                    ind_cv.append([(iy, ix)])
-                    end_ek[iy, ix] = 1
+            
+        # find end points
+        ind_ek = np.where(ek > .5)
+        end_ek = np.zeros_like(ek)
+        ind_cv = []
+        for iy, ix in zip(*ind_ek):
+            if ek[iy - 1:iy + 2, ix - 1:ix + 2].sum() < 3:
+                ind_cv.append([(iy, ix)])
+                end_ek[iy, ix] = 1
 
-            # find curves
-            for idx in ind_cv:
-                py, px = idx[0]
-                for iy, ix in idx:
-                    ptch = ek[iy - 1:iy + 2, ix - 1:ix + 2]
-                    _ind = np.where(ptch > .5)
-                    for _iy, _ix in zip(*_ind):
-                        _pre = (_iy + iy - 1 != py) or (_ix + ix - 1!= px)
-                        _curr = (_iy != 1) or (_ix != 1)
-                        if _pre and _curr:
-                            idx.append((iy + _iy - 1, ix + _ix - 1))
-                    py, px = iy, ix
-                    if len(idx) >= len_cv:
-                        break
-                
-            vec_cv = []
-            Tx, Ty = np.zeros_like(er), np.zeros_like(er)
-            new_er = np.zeros_like(er)
-            for idx in ind_cv:
-                if len(idx) < len_cv - 1:
-                    vec_cv.append((0, 0))
+        # find curves
+        for idx in ind_cv:
+            py, px = idx[0]
+            for iy, ix in idx:
+                ptch = ek[iy - 1:iy + 2, ix - 1:ix + 2]
+                _ind = np.where(ptch > .5)
+                for _iy, _ix in zip(*_ind):
+                    _pre = (_iy + iy - 1 != py) or (_ix + ix - 1!= px)
+                    _curr = (_iy != 1) or (_ix != 1)
+                    if _pre and _curr:
+                        idx.append((iy + _iy - 1, ix + _ix - 1))
+                py, px = iy, ix
+                if len(idx) >= len_cv:
+                    break
+            
+        [Y, X] = np.indices(_sz)
+        ss = 1 / gap / 5
+        pts = np.arange(0, -5, -ss)
+        new_er = np.zeros_like(er)
+        banned = np.zeros((len(ind_cv), 1))
+        for k, pt in enumerate(pts[1:]):
+            for iii, idx in enumerate(ind_cv):
+                if (len(idx) < len_cv - 1) or banned[iii]:
                     continue
                 b = np.array(list(zip(*idx[::gap + 1]))).T
                 _D = np.arange(num_pts)
                 D = np.array([_D * _D, _D, np.ones_like(_D)]).T
-                abc = np.linalg.lstsq(D, b)[0]
-
-                ss = 1 / gap / 5
-                pt = np.arange(0, -1, -ss)
+                abc = np.linalg.lstsq(D, b, rcond=None)[0]
+                abc[-1, :] = b[0]
 
                 yy = np.round(abc[0, 0] * pt * pt + abc[1, 0] * pt + abc[2, 0]).astype(int)
                 xx = np.round(abc[0, 1] * pt * pt + abc[1, 1] * pt + abc[2, 1]).astype(int)
 
-                for ii, (_yy, _xx) in enumerate(list(zip(yy, xx))[1:]):
-                    if psi[yy[ii], xx[ii]] < psi[_yy, _xx]:
-                        new_er[_yy, _xx] = 1
-                
-                
-            #     _vy, _vx = T1[0] - TT[0] / 2, T1[1] - TT[1] / 2
-            #     _nv = np.sqrt(_vx ** 2 + _vy ** 2)
-            #     vy, vx = _vy / (_nv + 0.0001), _vx / (_nv + 0.0001)
+                _yy = np.round(abc[0, 0] * pts[k] * pts[k] + abc[1, 0] * pts[k] + abc[2, 0]).astype(int)
+                _xx = np.round(abc[0, 1] * pts[k] * pts[k] + abc[1, 1] * pts[k] + abc[2, 1]).astype(int)
 
-            #     vec_cv.append((vy, vx))
-
-            # new_er = np.zeros_like(er)
-            # for ii, idx in enumerate(ind_cv):
-            #     iy, ix = idx[0]
-            #     Ty[iy, ix] = vec_cv[ii][0]
-            #     Tx[iy, ix] = vec_cv[ii][1]
-            #     for iii in range(1, _l + 1):
-            #         _yy, _xx = int(np.round(iy + (iii - 1) * vec_cv[ii][0])), int(np.round(ix + (iii - 1) * vec_cv[ii][1]))
-            #         yy, xx = int(np.round(iy + (iii) * vec_cv[ii][0])), int(np.round(ix + (iii) * vec_cv[ii][1]))
-            #         if psi[yy, xx] > psi[_yy, _xx] + .1:
-            #             new_er[int(np.round(iy + iii * vec_cv[ii][0])), int(np.round(ix + iii * vec_cv[ii][1]))] = 1
-            #             break
-
-            if k > iter:
-                break
-            else:
-                k += 1
+                if yy >= _sz[0] or xx >= _sz[1]:
+                    banned[iii] = 1
+                    continue
+                # elif psi[_yy, _xx] > psi[yy, xx]:
+                elif _ng[yy, xx] < .75 and _psi[yy, xx] > 0:
+                    banned[iii] = 1
+                    continue
+                # elif ek[yy, xx] > .5 and psi[yy, xx] > 0:
+                #     banned[iii] = 1
+                #     continue
+                new_er[yy, xx] = 1
+                    
+            if np.abs(new_er).sum() != 0:
                 ek = np.where(new_er + ek > .5, 1., 0.)
-                ek = skeletonize(ek)
-        
-            [Y, X] = np.indices(_sz)
-            ax.cla()
-            ax.imshow(ek, 'gray')
-            for idx in ind_cv:
-                _y, _x = list(zip(*idx[::gap]))
-                ax.plot(_x, _y, 'r.-')
-            plt.imshow(new_er, alpha=.5)
-            plt.pause(.5)
-            # plt.show()
-            # plt.savefig(join(_dir, f"test{k + kk*iter:04d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+                # ek = skeletonize(ek)
+                
+                ax.cla()
+                ax.imshow(ek, 'gray')
+                for idx in ind_cv:
+                    _y, _x = list(zip(*idx[::gap]))
+                    ax.plot(_x, _y, 'r.-')
+                ax.imshow(new_er, alpha=.5)
+                ax.set_title(f'step {kk + 1}')
+                plt.pause(.1)
+                # plt.show()
+                plt.savefig(join(_dir, f"test{k + kk*len(pts):04d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+
         er = cv2.dilate(np.where(ek > .5, 1., 0.), np.ones((3,3)), iterations=1)
+
+    saveFile(er, dir_save + '/er_test2.pck')
+    pass

@@ -49,12 +49,12 @@ class Balloon():
             seeds = yaml.load(f, Loader=yaml.FullLoader)[f"T{self.num_img:05d}"]
         if 'circles' in seeds:
             rad_c = seeds['circles'][0]
-            Y, X = np.indices([4 * rad_c, 4 * rad_c])
-            cen_pat = 2 * rad_c - .5
+            Y, X = np.indices([3 * rad_c, 3 * rad_c])
+            cen_pat = 1.5 * rad_c - .5
             pat = np.where((X - cen_pat)**2 + (Y - cen_pat)**2 < rad_c**2, -1., 1.)
 
             y, x = self.er.shape[:2]
-            py, px = y - 4 * rad_c, x - 4 * rad_c
+            py, px = y - 3 * rad_c, x - 3 * rad_c
 
             gap = 2
             _init = np.pad(pat, ((py // gap, py - py // gap), (px // gap, px - px // gap)), mode='symmetric')
@@ -91,17 +91,18 @@ class Balloon():
         g_f = self.gaussfilt(_f, sig=.5)
         return np.expand_dims(g_f, axis=-1)
 
-    def update(self, phis, mu=.1):
+    def update(self, phis, mu=10):
         if np.ndim(phis) < 3:
             phis = np.expand_dims(phis, axis=2)
         kp, gx, gy, ng = self.kappa(phis, mode=0)
         fb = self.force(phis, gx, gy, ng)
         
-        _e = np.expand_dims(self.gaussfilt(self.er, sig=1), axis=-1)
+        _e = np.expand_dims(self.gaussfilt(self.er, sig=.5), axis=-1)
         _e = _e / _e.max()
 
-        _f = mu * kp + fb * (1 - _e)
-        _phis = phis + self.dt * (_f + _e)
+        kp = kp / np.abs(kp).max()
+        _f = mu * kp -1 * (1 - _e)
+        _phis = phis + self.dt * (_f + 2 * _e)
         return _phis
 
     def kappa(self, phis, ksz=1, h=1, mode=0):
