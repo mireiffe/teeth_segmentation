@@ -81,13 +81,13 @@ class Coherent():
 
 
 if __name__ == '__main__':
-    _sz = 200, 200
+    _sz = 128, 128
     _c = _sz[0] // 2, _sz[1] // 2
     # _r = (_sz[0] + _sz[1]) // 20
     _r = 20
     ang = 20 * np.pi / 180        # degree
 
-    [Y, X] = np.indices((_sz[0], _sz[1]))
+    [X, Y] = np.indices((_sz[0], _sz[1]))
     cdt1 = (X - _c[0])**2 + (Y - _c[1])**2 < _r**2
     cdt2 = (X - _c[0])**2 + (Y - _c[1])**2 >= (_r - 2)**2
     er = np.where(cdt1 * cdt2, 1., 0.)
@@ -104,8 +104,8 @@ if __name__ == '__main__':
     
     er = er + er_
 
-    er = plt.imread('/home/users/mireiffe/Documents/Python/TeethSeg/data/images/er1.png').mean(axis=-1)
-    er = np.where(er < .5, 1., 0.)
+    # er = plt.imread('/home/users/mireiffe/Documents/Python/TeethSeg/data/images/er1.png').mean(axis=-1)
+    # er = np.where(er < .5, 1., 0.)
 
     dir_save = '/home/users/mireiffe/Documents/Python/TeethSeg/results'
     _dir = join(dir_save, 'test')
@@ -128,7 +128,9 @@ if __name__ == '__main__':
         fig = plt.figure()
         ax = fig.add_subplot(111)
 
-        gap = 20
+        gap = 3
+        num_pts = 10
+        len_cv = gap * (num_pts - 1) + num_pts
         iter = 10
         _l = 10
 
@@ -157,39 +159,49 @@ if __name__ == '__main__':
                         if _pre and _curr:
                             idx.append((iy + _iy - 1, ix + _ix - 1))
                     py, px = iy, ix
-                    if len(idx) > 2 * gap:
+                    if len(idx) >= len_cv:
                         break
                 
             vec_cv = []
             Tx, Ty = np.zeros_like(er), np.zeros_like(er)
+            new_er = np.zeros_like(er)
             for idx in ind_cv:
-                if len(idx) < 2 * gap + 1:
+                if len(idx) < len_cv - 1:
                     vec_cv.append((0, 0))
                     continue
-                _y, _x = list(zip(*idx[::gap]))
-                h1 = np.sqrt((_y[0] - _y[1]) ** 2 + (_x[0] - _x[1]) ** 2)
-                h2 = np.sqrt((_y[1] - _y[2]) ** 2 + (_x[1] - _x[2]) ** 2)
-                T1 = (_y[0] - _y[1]) / (h1 + 0.0001), (_x[0] - _x[1]) / (h1 + 0.0001)
-                T2 = (_y[1] - _y[2]) / (h2 + 0.0001), (_x[1] - _x[2]) / (h2 + 0.0001)
-                TT = (T2[0] - T1[0]) / (.5 * (h1 + h2)), (T2[1] - T1[1]) / (.5 * (h1 + h2))
+                b = np.array(list(zip(*idx[::gap + 1]))).T
+                _D = np.arange(num_pts)
+                D = np.array([_D * _D, _D, np.ones_like(_D)]).T
+                abc = np.linalg.lstsq(D, b)[0]
+
+                ss = 1 / gap / 5
+                pt = np.arange(0, -1, -ss)
+
+                yy = np.round(abc[0, 0] * pt * pt + abc[1, 0] * pt + abc[2, 0]).astype(int)
+                xx = np.round(abc[0, 1] * pt * pt + abc[1, 1] * pt + abc[2, 1]).astype(int)
+
+                for ii, (_yy, _xx) in enumerate(list(zip(yy, xx))[1:]):
+                    if psi[yy[ii], xx[ii]] < psi[_yy, _xx]:
+                        new_er[_yy, _xx] = 1
                 
-                _vy, _vx = T1[0] - TT[0] / 2, T1[1] - TT[1] / 2
-                _nv = np.sqrt(_vx ** 2 + _vy ** 2)
-                vy, vx = _vy / (_nv + 0.0001), _vx / (_nv + 0.0001)
+                
+            #     _vy, _vx = T1[0] - TT[0] / 2, T1[1] - TT[1] / 2
+            #     _nv = np.sqrt(_vx ** 2 + _vy ** 2)
+            #     vy, vx = _vy / (_nv + 0.0001), _vx / (_nv + 0.0001)
 
-                vec_cv.append((vy, vx))
+            #     vec_cv.append((vy, vx))
 
-            new_er = np.zeros_like(er)
-            for ii, idx in enumerate(ind_cv):
-                iy, ix = idx[0]
-                Ty[iy, ix] = vec_cv[ii][0]
-                Tx[iy, ix] = vec_cv[ii][1]
-                for iii in range(1, _l + 1):
-                    _yy, _xx = int(np.round(iy + (iii - 1) * vec_cv[ii][0])), int(np.round(ix + (iii - 1) * vec_cv[ii][1]))
-                    yy, xx = int(np.round(iy + (iii) * vec_cv[ii][0])), int(np.round(ix + (iii) * vec_cv[ii][1]))
-                    if psi[yy, xx] > psi[_yy, _xx] + .1:
-                        new_er[int(np.round(iy + iii * vec_cv[ii][0])), int(np.round(ix + iii * vec_cv[ii][1]))] = 1
-                        break
+            # new_er = np.zeros_like(er)
+            # for ii, idx in enumerate(ind_cv):
+            #     iy, ix = idx[0]
+            #     Ty[iy, ix] = vec_cv[ii][0]
+            #     Tx[iy, ix] = vec_cv[ii][1]
+            #     for iii in range(1, _l + 1):
+            #         _yy, _xx = int(np.round(iy + (iii - 1) * vec_cv[ii][0])), int(np.round(ix + (iii - 1) * vec_cv[ii][1]))
+            #         yy, xx = int(np.round(iy + (iii) * vec_cv[ii][0])), int(np.round(ix + (iii) * vec_cv[ii][1]))
+            #         if psi[yy, xx] > psi[_yy, _xx] + .1:
+            #             new_er[int(np.round(iy + iii * vec_cv[ii][0])), int(np.round(ix + iii * vec_cv[ii][1]))] = 1
+            #             break
 
             if k > iter:
                 break
@@ -204,52 +216,8 @@ if __name__ == '__main__':
             for idx in ind_cv:
                 _y, _x = list(zip(*idx[::gap]))
                 ax.plot(_x, _y, 'r.-')
-            # plt.imshow(new_er, alpha=.5)
-            # plt.quiver(X, Y, Tx, Ty, angles='xy', scale_units='xy', scale=1, color='blue')
+            plt.imshow(new_er, alpha=.5)
             plt.pause(.5)
             # plt.show()
             # plt.savefig(join(_dir, f"test{k + kk*iter:04d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
         er = cv2.dilate(np.where(ek > .5, 1., 0.), np.ones((3,3)), iterations=1)
-
-    # plt.figure()
-    # plt.imshow(ek, 'gray')
-    # for idx in ind_cv:
-    #     _y, _x = list(zip(*idx))
-    #     plt.plot(_x[::2], _y[::2], 'ro-')
-    # plt.imshow(new_er, alpha=.5)
-    # # plt.quiver(X, Y, Tx, Ty, angles='xy', scale_units='xy', scale=1, color='blue')
-    # plt.show()
-
-    
-    # COH.getCoOri(er)
-
-    # iter = 100
-
-    # fig = plt.figure()
-    # ax = fig.add_subplot(121)
-    # ax.imshow(er, 'gray')
-    # ax.set_title(f'initial')
-    # ax.contour(_psi, levels=[0], colors='red')
-    # ax = fig.add_subplot(122)
-    # for i in range(iter):
-    #     coh = COH.getCoOri(_psi)
-    #     kapp, gx, gy, ng = COH.kappa(_psi, ksz=3)
-
-    #     fl = hvsd(np.abs(coh[..., 0] * gx + coh[..., 1] * gy) - 1 / np.sqrt(2)) * hvsd(kapp - .5)
-
-    #     _psi = _psi - .5 * fl * ng
-
-    #     if i % 10 == 10:
-    #         _pr = np.where(_psi < 0, -1., 1.)
-    #         _psi = rein.getSDF(_pr)
-    
-    #     ax.cla()
-    #     ax.imshow(er, 'gray')
-    #     ax.set_title(f'iter = {i}')
-    #     ax.contour(_psi, levels=[0], colors='red')
-    #     # plt.show()
-    #     # plt.savefig(join(_dir, f"test{i:04d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-    #     plt.pause(.1)
-
-    # COH = Coherent(sig=1, rho=10)
-    # COH.getCoOri(er)
