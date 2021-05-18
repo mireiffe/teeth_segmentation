@@ -91,7 +91,7 @@ class Balloon():
         g_f = self.gaussfilt(_f, sig=.5)
         return np.expand_dims(g_f, axis=-1)
 
-    def update(self, phis, mu=10):
+    def update(self, phis, mu=5):
         if np.ndim(phis) < 3:
             phis = np.expand_dims(phis, axis=2)
         kp, gx, gy, ng = self.kappa(phis, mode=0)
@@ -102,7 +102,7 @@ class Balloon():
 
         kp = kp / np.abs(kp).max()
         _f = mu * kp -1 * (1 - _e)
-        _phis = phis + self.dt * (_f + 2 * _e)
+        _phis = phis + self.dt * (_f + 1.5 * _e)
         return _phis
 
     def kappa(self, phis, ksz=1, h=1, mode=0):

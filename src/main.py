@@ -80,7 +80,7 @@ if __name__=='__main__':
     er = skeletonize(er)
     er = cv2.dilate(np.where(er > .5, 1., 0.), np.ones((3, 3)), iterations=1)
 
-    bln = Balloon(args.num_img, er, wid=5, radii='auto', dt=0.1)
+    bln = Balloon(args.num_img, er, wid=5, radii='auto', dt=0.2)
     phis = bln.phis0
 
     # FOR TEST!!!!!!!!!!!!!!
@@ -95,7 +95,7 @@ if __name__=='__main__':
     _k = 0
     while True:
         _vis = _k % 10 == 0
-        _save = _k % 1 == 1
+        _save = _k % 1 == 0
 
         _k += 1
         _reinit = _k % 5 == 0
