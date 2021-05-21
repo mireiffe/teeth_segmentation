@@ -104,7 +104,7 @@ class Balloon():
 
         kp = self.gaussfilt(kp[..., 0], sig=1)
         kp = kp / np.abs(kp).max()
-        kp = np.where(np.abs(kp) > .2, kp, 0)
+        kp = np.where(np.abs(kp) > .4, kp, 0)
         _f = np.expand_dims(mu * kp - self.psi + 2*self.er, axis=-1)
         _phis = phis + self.dt * _f
         return _phis
