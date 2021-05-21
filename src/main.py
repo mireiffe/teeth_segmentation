@@ -82,7 +82,7 @@ if __name__=='__main__':
         
         er = er + er_
 
-    ni = 58
+    ni = 51
 
     # er = cv2.dilate(loadFile('results/er_test.pck'), np.ones((3,3)), iterations=1)
     er = loadFile(f'results/er_test{ni:05d}.pck')

@@ -102,14 +102,14 @@ class Balloon():
         _e = np.expand_dims(self.gaussfilt(self.er, sig=.1), axis=-1)
         _e = _e / _e.max()
 
-        kp = self.gaussfilt(kp[..., 0], sig=1)
+        kp = kp[..., 0]
         kp = kp / np.abs(kp).max()
-        kp = np.where(np.abs(kp) > .4, kp, 0)
-        _f = np.expand_dims(mu * kp - self.psi + 2*self.er, axis=-1)
+        kp = np.where((kp > .9) + (kp < -.01), kp, 0)
+        _f = np.expand_dims(mu * kp - self.psi + 1.5*self.er, axis=-1)
         _phis = phis + self.dt * _f
         return _phis
 
-    def kappa(self, phis, ksz=1, h=1, mode=1):
+    def kappa(self, phis, ksz=1, h=1, mode=0):
         x, y = self.imgrad(phis)
         if mode == 0:
             ng = np.sqrt(x**2 + y**2 + self.eps)
