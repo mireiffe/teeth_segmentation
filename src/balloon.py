@@ -33,6 +33,8 @@ class Balloon():
         self.reinit = Reinitial(dt=.1, width=None, tol=.01, iter=None, dim=2)
         self.phis0 = self.reinit.getSDF(inits)
 
+        self.psi = self.reinit.getSDF(np.where(self.er > .5, -1., 1.))
+
         self.grid_Y, self.grid_X = np.indices(self._er.shape[:2])
         self._erx, self._ery = self.imgrad(self.reinit.getSDF(.5 - self._er))
         self._erng = np.sqrt(self._erx**2 + self._ery**2)
@@ -91,21 +93,23 @@ class Balloon():
         g_f = self.gaussfilt(_f, sig=.5)
         return np.expand_dims(g_f, axis=-1)
 
-    def update(self, phis, mu=5):
+    def update(self, phis, mu=10):
         if np.ndim(phis) < 3:
             phis = np.expand_dims(phis, axis=2)
         kp, gx, gy, ng = self.kappa(phis, mode=0)
         fb = self.force(phis, gx, gy, ng)
         
-        _e = np.expand_dims(self.gaussfilt(self.er, sig=.5), axis=-1)
+        _e = np.expand_dims(self.gaussfilt(self.er, sig=.1), axis=-1)
         _e = _e / _e.max()
 
+        kp = self.gaussfilt(kp[..., 0], sig=1)
         kp = kp / np.abs(kp).max()
-        _f = mu * kp -1 * (1 - _e)
-        _phis = phis + self.dt * (_f + 1.5 * _e)
+        kp = np.where(np.abs(kp) > .2, kp, 0)
+        _f = np.expand_dims(mu * kp - self.psi + 2*self.er, axis=-1)
+        _phis = phis + self.dt * _f
         return _phis
 
-    def kappa(self, phis, ksz=1, h=1, mode=0):
+    def kappa(self, phis, ksz=1, h=1, mode=1):
         x, y = self.imgrad(phis)
         if mode == 0:
             ng = np.sqrt(x**2 + y**2 + self.eps)

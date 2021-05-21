@@ -32,7 +32,7 @@ def get_args():
     return parser.parse_args()
 
 def savepck(dict, fname):
-    with open('/home/users/mireiffe/Documents/Python/TeethSeg/results/' + fname, 'wb') as f:
+    with open('/home/users/mireiffe/Documents/Python/TeethSeg/' + fname, 'wb') as f:
         pickle.dump(dict, f)
     return 0
 
@@ -44,11 +44,18 @@ def loadFile(path):
 if __name__=='__main__':
     args = get_args()
 
+    # num_imgs = range(51, 61)
+    # for ni in num_imgs:
+    #     # get edge regions from network
+    #     edrg = EdgeRegion(args.path_cfg, ni)
+    #     er = edrg.getEr()
+    #     savepck(er, f"data/net_ers/T{ni:05d}.pck")
+    # os._exit(0)
+
     # get edge regions from network
     # edrg = EdgeRegion(args.path_cfg, args.num_img)
     # er = edrg.getEr()
 
-    # savepck(er, 'T00001.pck')
 
     # plt.figure()
     # plt.imshow(er, 'gray')
@@ -75,12 +82,14 @@ if __name__=='__main__':
         
         er = er + er_
 
+    ni = 58
+
     # er = cv2.dilate(loadFile('results/er_test.pck'), np.ones((3,3)), iterations=1)
-    er = loadFile('results/er_test.pck')
+    er = loadFile(f'results/er_test{ni:05d}.pck')
     er = skeletonize(er)
     er = cv2.dilate(np.where(er > .5, 1., 0.), np.ones((3, 3)), iterations=1)
 
-    bln = Balloon(args.num_img, er, wid=5, radii='auto', dt=0.2)
+    bln = Balloon(args.num_img, er, wid=5, radii='auto', dt=0.03)
     phis = bln.phis0
 
     # FOR TEST!!!!!!!!!!!!!!
@@ -95,17 +104,17 @@ if __name__=='__main__':
     _k = 0
     while True:
         _vis = _k % 10 == 0
-        _save = _k % 1 == 0
+        _save = _k % 1 == 1
 
         _k += 1
-        _reinit = _k % 5 == 0
+        _reinit = _k % 10 == 0
 
         new_phis = bln.update(phis)
         print(f"\riteration: {_k}", end='')
 
         if _save or _vis:
             bln.drawContours(_k, phis, ax)
-            _dir = join(dir_save, 'test')
+            _dir = join(dir_save, f'test_lvset{ni:05d}')
             try:
                 os.mkdir(_dir)
                 print(f"Created save directory {_dir}")
