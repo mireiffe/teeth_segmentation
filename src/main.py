@@ -32,7 +32,7 @@ def get_args():
     return parser.parse_args()
 
 def savepck(dict, fname):
-    with open('/home/users/mireiffe/Documents/Python/TeethSeg/' + fname, 'wb') as f:
+    with open(fname, 'wb') as f:
         pickle.dump(dict, f)
     return 0
 
@@ -84,50 +84,56 @@ if __name__=='__main__':
 
     ni = 51
 
-    # er = cv2.dilate(loadFile('results/er_test.pck'), np.ones((3,3)), iterations=1)
-    er = loadFile(f'results/er_test{ni:05d}.pck')
-    er = skeletonize(er)
-    er = cv2.dilate(np.where(er > .5, 1., 0.), np.ones((3, 3)), iterations=1)
+    for ni in [51, 53, 55, 56, 57, 58, 59]:
+        # er = cv2.dilate(loadFile('results/er_test.pck'), np.ones((3,3)), iterations=1)
+        er = loadFile(f'results/er_dil_iter5/er_test{ni:05d}.pck')
+        er = skeletonize(er)
+        er = cv2.dilate(np.where(er > .5, 1., 0.), np.ones((3, 3)), iterations=1)
 
-    bln = Balloon(args.num_img, er, wid=5, radii='auto', dt=0.03)
-    phis = bln.phis0
+        bln = Balloon(args.num_img, er, wid=5, radii='auto', dt=0.03)
+        phis = bln.phis0
 
-    # FOR TEST!!!!!!!!!!!!!!
-    # inits = bln.getInitials()
-    # inits = np.expand_dims(np.where((X - 84)**2 + (Y-64)**2 < 10**2, 1., inits[..., 0]), axis=-1)
-    # phis = bln.reinit.getSDF(inits)
-    # END!!!!!!!!!!!!!!!!!
+        # FOR TEST!!!!!!!!!!!!!!
+        # inits = bln.getInitials()
+        # inits = np.expand_dims(np.where((X - 84)**2 + (Y-64)**2 < 10**2, 1., inits[..., 0]), axis=-1)
+        # phis = bln.reinit.getSDF(inits)
+        # END!!!!!!!!!!!!!!!!!
 
-    fig, ax = bln.setFigure(phis)
-    mng = plt.get_current_fig_manager()
-    mng.window.showMaximized()
-    _k = 0
-    while True:
-        _vis = _k % 10 == 0
-        _save = _k % 1 == 1
-
-        _k += 1
-        _reinit = _k % 10 == 0
-
-        new_phis = bln.update(phis)
-        print(f"\riteration: {_k}", end='')
-
-        if _save or _vis:
-            bln.drawContours(_k, phis, ax)
-            _dir = join(dir_save, f'test_lvset{ni:05d}')
-            try:
-                os.mkdir(_dir)
-                print(f"Created save directory {_dir}")
-            except OSError:
-                pass
-            if _save: plt.savefig(join(_dir, f"test_main{_k:04d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-            if _vis: plt.pause(.5)
+        fig, ax = bln.setFigure(phis)
+        mng = plt.get_current_fig_manager()
+        # mng.window.showMaximized()
+        # mng.resize(*mng.window.maxsize())
+        mng.full_screen_toggle()
         
-        err = np.abs(new_phis - phis).sum() / np.ones_like(phis).sum()
-        if err < tol:
-            break
+        _k = 0
+        while True:
+            _vis = _k % 10 == 0
+            _save = _k % 3 == 0
 
-        if _reinit:
-            new_phis = np.where(new_phis < 0, -1., 1.)
-            new_phis = bln.reinit.getSDF(new_phis)
-        phis = new_phis
+            _k += 1
+            _reinit = _k % 10 == 0
+
+            new_phis = bln.update(phis)
+            print(f"\riteration: {_k}", end='')
+
+            if _save or _vis:
+                bln.drawContours(_k, phis, ax)
+                _dir = join(dir_save, f'test_lvset{ni:05d}')
+                try:
+                    os.mkdir(_dir)
+                    print(f"Created save directory {_dir}")
+                except OSError:
+                    pass
+                if _save: plt.savefig(join(_dir, f"test{_k:05d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+                if _vis: plt.pause(.5)
+            
+            err = np.abs(new_phis - phis).sum() / np.ones_like(phis).sum()
+            if (err < tol) or _k > 1000:
+                break
+
+            if _reinit:
+                new_phis = np.where(new_phis < 0, -1., 1.)
+                new_phis = bln.reinit.getSDF(new_phis)
+            phis = new_phis
+            
+        savepck({'er': er, 'phis': new_phis}, join(_dir, f"dict{_k:05d}.pck"))
