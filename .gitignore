@@ -1,3 +1,8 @@
 results
+<<<<<<< HEAD
 *.pck
 *.pth
+=======
+core*
+data
+>>>>>>> 9264601987775a89591413396bb9d13cb291b08c
