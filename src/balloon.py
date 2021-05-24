@@ -24,13 +24,18 @@ class Balloon():
         self.radii = radii
         self.dt = dt
         self.wid = wid
+        
         if wid % 2 == 0:
             raise NameError('wid must be an odd number')
 
+        # get initial SDF
         inits = self.getInitials()
-
-        self.reinit = Reinitial(dt=.1, width=None, tol=.001, iter=None, dim=2)
+        self.reinit = Reinitial(dt=.1, width=None, tol=.01, iter=None, dim=2)
         self.phis0 = self.reinit.getSDF(inits)
+
+        self.grid_Y, self.grid_X = np.indices(self._er.shape[:2])
+        self._erx, self._ery = self.imgrad(self.reinit.getSDF(.5 - self._er))
+        self._erng = np.sqrt(self._erx**2 + self._ery**2)
 
     @staticmethod
     def loadFile(path: str):
@@ -51,7 +56,8 @@ class Balloon():
             y, x = self.er.shape[:2]
             py, px = y - 4 * rad_c, x - 4 * rad_c
 
-            _init = np.pad(pat, ((py // 2, py - py // 2), (px // 2, px - px // 2)), mode='symmetric')
+            gap = 2
+            _init = np.pad(pat, ((py // gap, py - py // gap), (px // gap, px - px // gap)), mode='symmetric')
         else:
             seed_teeth = seeds['teeth']
             y, x = self.er.shape[:2]
@@ -72,20 +78,30 @@ class Balloon():
         return cv2.GaussianBlur(img, ksz, sig, borderType=bordertype)
 
     # ballooon inflating cores
-    def force(self, phis, ng, skltn=.8):
-        _R = cv2.dilate(np.where((ng < skltn) * (phis > 0), 1., 0.), np.ones((self.wid, self.wid)), iterations=1)
-        _f = np.where(_R, 1., -1.)
-        g_f = self.gaussfilt(_f, sig=2)
+    def force(self, phis, gx, gy, ng, skltn=.8):
+        ker_E = np.ones((3 * self.wid + 1, 3 * self.wid + 1))
+        ker_R = np.ones((self.wid, self.wid))
+
+        _T = np.where(np.abs(gx * self._erx + gy * self._ery) < skltn, 1., 0.)[..., 0]
+        _E = cv2.dilate(self._er, ker_E, iterations=1)
+        _R = cv2.dilate(np.where((ng < skltn) * (phis > 0), 1., 0.), ker_R, iterations=1)
+
+        _f = np.where(_R * _E * _T, 2., -1.)
+        # _f = np.where(_R * _T, 2., -1.)
+        g_f = self.gaussfilt(_f, sig=.5)
         return np.expand_dims(g_f, axis=-1)
 
     def update(self, phis, mu=.1):
         if np.ndim(phis) < 3:
             phis = np.expand_dims(phis, axis=2)
-        kp, ng = self.kappa(phis, mode=0)
-        fb = self.force(phis, ng)
+        kp, gx, gy, ng = self.kappa(phis, mode=0)
+        fb = self.force(phis, gx, gy, ng)
         
-        _f = mu * kp + fb
-        _phis = phis + self.dt * _f * (1 - self._er)
+        _e = np.expand_dims(self.gaussfilt(self.er, sig=1), axis=-1)
+        _e = _e / _e.max()
+
+        _f = mu * kp + fb * (1 - _e)
+        _phis = phis + self.dt * (_f + _e)
         return _phis
 
     def kappa(self, phis, ksz=1, h=1, mode=0):
@@ -95,12 +111,13 @@ class Balloon():
             nx, ny = x / ng, y / ng
             xx, _ = self.imgrad(nx)
             _, yy = self.imgrad(ny)
-            return xx + yy, ng
+            return xx + yy, x, y, ng
         elif mode == 1:
             xx, yy, xy = self.imgrad(phis, order=2)
             res_den = xx * y * y - 2 * x * y * xy + yy * x * x
             res_num = np.power(x ** 2 + y ** 2, 1.5)
-            return res_den / (res_num + self.eps)
+            ng = np.sqrt(x**2 + y**2 + self.eps)        # just for output
+            return res_den / (res_num + self.eps), x, y, ng
 
     @staticmethod
     def imgrad(img, order=1, h=1) -> np.ndarray:
@@ -199,6 +216,18 @@ class Balloon():
     def _show(wandtoshow, contour=None):
         plt.figure()
         plt.imshow(wandtoshow)
+        plt.grid(which='minor', axis='both', linestyle='-')
         if contour is not None:
             plt.contour(contour, levels=[0], colors='red')
+        plt.show()
+
+    def _showVF(self, phis):
+        plt.figure()
+        plt.imshow(self._er, 'gray')
+        plt.contour(phis[..., 0], levels=[0], colors='red')
+
+        x, y = self.imgrad(phis)
+        plt.quiver(self.grid_X, self.grid_Y, x[..., 0], y[..., 0], angles='xy', scale_units='xy', scale=None, color='blue')
+        plt.quiver(self.grid_X, self.grid_Y, self._erx[..., 0], self._ery[..., 0], angles='xy', scale_units='xy', scale=None, color='red')
+
         plt.show()

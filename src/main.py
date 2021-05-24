@@ -2,6 +2,7 @@ import os
 from os.path import join
 import argparse
 
+import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -39,20 +40,38 @@ if __name__=='__main__':
         _sz = 128, 128
         _c = 64, 64
         _r = 20
+        ang = 20 * np.pi / 180        # degree
+
         [X, Y] = np.indices((_sz[0], _sz[1]))
         cdt1 = (X - _c[0])**2 + (Y - _c[1])**2 < _r**2
         cdt2 = (X - _c[0])**2 + (Y - _c[1])**2 >= (_r - 2)**2
         er = np.where(cdt1 * cdt2, 1., 0.)
+        er = np.where(((Y - _c[1]) - np.tan(ang) * (X - _c[0]) < 0) * ((Y - _c[1]) + np.tan(ang) * (X - _c[0])) > 0, 0., er)
+
+        er_ = np.zeros_like(er)
+        # for x in zip(range(61, 67), range(61, 67)):
+        #     er_[x[0], x[1]] = 1
+        # for x in zip(range(62, 68), range(61, 67)):
+        #     er_[x[0], x[1]] = 1
+        # er_ = cv2.dilate(er_, np.ones((3, 3)), iterations=1)
+        
+        er = er + er_
 
     bln = Balloon(args.num_img, er, wid=5, radii='auto', dt=0.3)
     phis = bln.phis0
+
+    # FOR TEST!!!!!!!!!!!!!!
+    # inits = bln.getInitials()
+    # inits = np.expand_dims(np.where((X - 84)**2 + (Y-64)**2 < 10**2, 1., inits[..., 0]), axis=-1)
+    # phis = bln.reinit.getSDF(inits)
+    # END!!!!!!!!!!!!!!!!!
 
     fig, ax = bln.setFigure(phis)
     mng = plt.get_current_fig_manager()
     mng.window.showMaximized()
     _k = 0
     while True:
-        _vis = _k % 3 == 0
+        _vis = _k % 10 == 0
         _save = _k % 1 == 0
 
         _k += 1
@@ -63,14 +82,14 @@ if __name__=='__main__':
 
         if _save or _vis:
             bln.drawContours(_k, phis, ax)
-            _dir = join(dir_save, 'test_kap_er_width5')
+            _dir = join(dir_save, 'test')
             try:
                 os.mkdir(_dir)
                 print(f"Created save directory {_dir}")
             except OSError:
                 pass
             if _save: plt.savefig(join(_dir, f"test{_k:04d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-            if _vis: plt.pause(1)
+            if _vis: plt.pause(.1)
         
         err = np.abs(new_phis - phis).sum() / np.ones_like(phis).sum()
         if err < tol:
@@ -80,4 +99,3 @@ if __name__=='__main__':
             new_phis = np.where(new_phis < 0, -1., 1.)
             new_phis = bln.reinit.getSDF(new_phis)
         phis = new_phis
-
