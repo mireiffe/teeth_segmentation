@@ -70,6 +70,7 @@ class Balloon():
             _init = sum([np.where((X-sd[0])**2 + (Y-sd[1])**2 < self.radii**2, 1, 0) 
                     for _i, sd in enumerate(seed_teeth)])
             _init = np.where(_init > 0, -1., 1.)
+        _init[195:205, 395:405] = 1
         _init = np.expand_dims(_init, axis=-1)
         return np.where(self._er < .5, _init, 1.)
 

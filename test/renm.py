@@ -2,7 +2,7 @@ import os
 import numpy as np
 
 
-num_img = [56, 57, 58, 59]
+num_img = [55]
 
 for ni in num_img:
     dir = f'results/test_lvset000{ni}/'

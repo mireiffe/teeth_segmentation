@@ -82,13 +82,11 @@ if __name__=='__main__':
         
         er = er + er_
 
-    ni = 51
-
-    for ni in [51, 53, 55, 56, 57, 58, 59]:
+    for ni in [55]:
         # er = cv2.dilate(loadFile('results/er_test.pck'), np.ones((3,3)), iterations=1)
         er = loadFile(f'results/er_dil_iter5/er_test{ni:05d}.pck')
         er = skeletonize(er)
-        er = cv2.dilate(np.where(er > .5, 1., 0.), np.ones((3, 3)), iterations=1)
+        er = cv2.dilate(np.where(er > .5, 1., 0.), np.ones((3, 3)), iterations=1)[2:-2, 2:-2]
 
         bln = Balloon(args.num_img, er, wid=5, radii='auto', dt=0.03)
         phis = bln.phis0
@@ -128,7 +126,7 @@ if __name__=='__main__':
                 if _vis: plt.pause(.5)
             
             err = np.abs(new_phis - phis).sum() / np.ones_like(phis).sum()
-            if (err < tol) or _k > 1000:
+            if (err < tol) or _k > 150:
                 break
 
             if _reinit:
