@@ -33,6 +33,8 @@ class Balloon():
         self.reinit = Reinitial(dt=.1, width=None, tol=.01, iter=None, dim=2)
         self.phis0 = self.reinit.getSDF(inits)
 
+        self.psi = self.reinit.getSDF(np.where(self.er > .5, -1., 1.))
+
         self.grid_Y, self.grid_X = np.indices(self._er.shape[:2])
         self._erx, self._ery = self.imgrad(self.reinit.getSDF(.5 - self._er))
         self._erng = np.sqrt(self._erx**2 + self._ery**2)
@@ -49,12 +51,12 @@ class Balloon():
             seeds = yaml.load(f, Loader=yaml.FullLoader)[f"T{self.num_img:05d}"]
         if 'circles' in seeds:
             rad_c = seeds['circles'][0]
-            Y, X = np.indices([4 * rad_c, 4 * rad_c])
-            cen_pat = 2 * rad_c - .5
+            Y, X = np.indices([3 * rad_c, 3 * rad_c])
+            cen_pat = 1.5 * rad_c - .5
             pat = np.where((X - cen_pat)**2 + (Y - cen_pat)**2 < rad_c**2, -1., 1.)
 
             y, x = self.er.shape[:2]
-            py, px = y - 4 * rad_c, x - 4 * rad_c
+            py, px = y - 3 * rad_c, x - 3 * rad_c
 
             gap = 2
             _init = np.pad(pat, ((py // gap, py - py // gap), (px // gap, px - px // gap)), mode='symmetric')
@@ -68,6 +70,7 @@ class Balloon():
             _init = sum([np.where((X-sd[0])**2 + (Y-sd[1])**2 < self.radii**2, 1, 0) 
                     for _i, sd in enumerate(seed_teeth)])
             _init = np.where(_init > 0, -1., 1.)
+        _init[195:205, 395:405] = 1
         _init = np.expand_dims(_init, axis=-1)
         return np.where(self._er < .5, _init, 1.)
 
@@ -91,17 +94,20 @@ class Balloon():
         g_f = self.gaussfilt(_f, sig=.5)
         return np.expand_dims(g_f, axis=-1)
 
-    def update(self, phis, mu=.1):
+    def update(self, phis, mu=10):
         if np.ndim(phis) < 3:
             phis = np.expand_dims(phis, axis=2)
         kp, gx, gy, ng = self.kappa(phis, mode=0)
         fb = self.force(phis, gx, gy, ng)
         
-        _e = np.expand_dims(self.gaussfilt(self.er, sig=1), axis=-1)
+        _e = np.expand_dims(self.gaussfilt(self.er, sig=.1), axis=-1)
         _e = _e / _e.max()
 
-        _f = mu * kp + fb * (1 - _e)
-        _phis = phis + self.dt * (_f + _e)
+        kp = kp[..., 0]
+        kp = kp / np.abs(kp).max()
+        kp = np.where((kp > .9) + (kp < -.01), kp, 0)
+        _f = np.expand_dims(mu * kp - self.psi + 1.5*self.er, axis=-1)
+        _phis = phis + self.dt * _f
         return _phis
 
     def kappa(self, phis, ksz=1, h=1, mode=0):

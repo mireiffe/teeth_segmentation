@@ -1,7 +1,9 @@
+import os
 from os.path import join
 
 from skimage.morphology import skeletonize
 import numpy as np
+import pickle
 import cv2
 import matplotlib.pyplot as plt
 
@@ -79,6 +81,16 @@ class Coherent():
             ng = np.sqrt(x**2 + y**2 + self.eps)        # just for output
             return res_den / (res_num + self.eps), x, y, ng
 
+def loadFile(path):
+    with open(path, 'rb') as f:
+        dict = pickle.load(f)
+    return dict
+
+def saveFile(dict, path):
+    with open(path, 'wb') as f:
+        pickle.dump(dict, f)
+    return 0
+
 
 if __name__ == '__main__':
     _sz = 128, 128
@@ -87,7 +99,7 @@ if __name__ == '__main__':
     _r = 20
     ang = 20 * np.pi / 180        # degree
 
-    [Y, X] = np.indices((_sz[0], _sz[1]))
+    [X, Y] = np.indices((_sz[0], _sz[1]))
     cdt1 = (X - _c[0])**2 + (Y - _c[1])**2 < _r**2
     cdt2 = (X - _c[0])**2 + (Y - _c[1])**2 >= (_r - 2)**2
     er = np.where(cdt1 * cdt2, 1., 0.)
@@ -107,34 +119,48 @@ if __name__ == '__main__':
     # er = plt.imread('/home/users/mireiffe/Documents/Python/TeethSeg/data/images/er1.png').mean(axis=-1)
     # er = np.where(er < .5, 1., 0.)
 
-    dir_save = '/home/users/mireiffe/Documents/Python/TeethSeg/results'
-    _dir = join(dir_save, 'test')
-    def hvsd(x, eps=.1):
-        return .5 * (1 + 2 / np.pi * np.arctan(x / eps))
+    for ni in range(55, 61):
+        # T00001
+        er = loadFile(f'/home/users/mireiffe/Documents/Python/TeethSeg/data/net_ers/T{ni:05d}.pck')
+        er = np.where(er > .5, 1., 0.)
 
-    rein = Reinitial()
-    COH = Coherent(sig=1, rho=10)
+        dir_save = '/home/users/mireiffe/Documents/Python/TeethSeg/results'
+        _dir = join(dir_save, f'test{ni}')
+        def hvsd(x, eps=.1):
+            return .5 * (1 + 2 / np.pi * np.arctan(x / eps))
+
+
+        _sz = er.shape
+        rein = Reinitial()
+        COH = Coherent(sig=1, rho=10)
 
     for kk in range(1):
         psi = rein.getSDF(.5 - er)
 
+        for kk in range(5):
+            psi = rein.getSDF(.5 - er)
 
-        gx, gy = COH.imgrad(psi)
-        ng = np.sqrt(gx ** 2 + gy ** 2)
-        ec = np.where((ng < .75) * (er > .5), 1., 0.)
-        ek = skeletonize(ec)
 
-        k = 0
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
+            gx, gy = COH.imgrad(psi)
+            ng = np.sqrt(gx ** 2 + gy ** 2)
+            ec = np.where((ng < .75) * (er > .5), 1., 0.)
+            ek = skeletonize(ec)
 
-        gap = 20
-        iter = 10
-        _l = 10
+            _psi = rein.getSDF(.5 - ek)
+            _gx, _gy = COH.imgrad(_psi)
+            _ng = np.sqrt(_gx ** 2 + _gy ** 2)
 
-        mng = plt.get_current_fig_manager()
-        mng.window.showMaximized()
-        while True:
+            fig = plt.figure()
+            ax = fig.add_subplot(111)
+
+            gap = 3
+            num_pts = 10
+            len_cv = gap * (num_pts - 1) + num_pts
+            iter = 10
+            _l = 10
+
+            mng = plt.get_current_fig_manager()
+            mng.window.showMaximized()
                 
             # find end points
             ind_ek = np.where(ek > .5)
@@ -157,9 +183,66 @@ if __name__ == '__main__':
                         if _pre and _curr:
                             idx.append((iy + _iy - 1, ix + _ix - 1))
                     py, px = iy, ix
-                    if len(idx) > 2 * gap:
+                    if len(idx) >= len_cv:
                         break
                 
+            [Y, X] = np.indices(_sz)
+            ss = 1 / gap / 5
+            pts = np.arange(0, -5, -ss)
+            new_er = np.zeros_like(er)
+            banned = np.zeros((len(ind_cv), 1))
+            for k, pt in enumerate(pts[1:]):
+                for iii, idx in enumerate(ind_cv):
+                    if (len(idx) < len_cv - 1) or banned[iii]:
+                        continue
+                    b = np.array(list(zip(*idx[::gap + 1]))).T
+                    _D = np.arange(num_pts)
+                    D = np.array([_D * _D, _D, np.ones_like(_D)]).T
+                    abc = np.linalg.lstsq(D, b, rcond=None)[0]
+                    abc[-1, :] = b[0]
+
+                    yy = np.round(abc[0, 0] * pt * pt + abc[1, 0] * pt + abc[2, 0]).astype(int)
+                    xx = np.round(abc[0, 1] * pt * pt + abc[1, 1] * pt + abc[2, 1]).astype(int)
+
+                    _yy = np.round(abc[0, 0] * pts[k] * pts[k] + abc[1, 0] * pts[k] + abc[2, 0]).astype(int)
+                    _xx = np.round(abc[0, 1] * pts[k] * pts[k] + abc[1, 1] * pts[k] + abc[2, 1]).astype(int)
+
+                    if yy >= _sz[0] or xx >= _sz[1]:
+                        banned[iii] = 1
+                        continue
+                    # elif psi[_yy, _xx] > psi[yy, xx]:
+                    elif _ng[yy, xx] < .75 and _psi[yy, xx] > 0:
+                        banned[iii] = 1
+                        continue
+                    # elif ek[yy, xx] > .5 and psi[yy, xx] > 0:
+                    #     banned[iii] = 1
+                    #     continue
+                    new_er[yy, xx] = 1
+                        
+                if np.abs(new_er).sum() != 0:
+                    ek = np.where(new_er + ek > .5, 1., 0.)
+                    # ek = skeletonize(ek)
+                    
+                    ax.cla()
+                    ax.imshow(ek, 'gray')
+                    for idx in ind_cv:
+                        _y, _x = list(zip(*idx[::gap]))
+                        ax.plot(_x, _y, 'r.-')
+                    ax.imshow(new_er, alpha=.5)
+                    ax.set_title(f'step {kk + 1}')
+                    plt.pause(.1)
+                    # plt.show()
+                    # try:
+                    #     os.mkdir(_dir)
+                    #     print(f"Created save directory {_dir}")
+                    # except OSError:
+                    #     pass
+                    # plt.savefig(join(_dir, f"test{k + kk*len(pts):04d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+
+            er = cv2.dilate(np.where(ek > .5, 1., 0.), np.ones((3,3)), iterations=1)
+
+        saveFile(er, dir_save + f'/er_test{ni:05d}.pck')
+        pass
             vec_cv = []
             Tx, Ty = np.zeros_like(er), np.zeros_like(er)
             for idx in ind_cv:
