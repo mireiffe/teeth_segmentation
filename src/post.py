@@ -14,9 +14,9 @@ def loadFile(path):
     return _dt
 
 
-num_img = 55
+num_img = 1
 
-path_dt = f'results/test_lvset{num_img:05d}/dict00151.pck'
+path_dt = f'results/test_lvset_TC{num_img:05d}/dict00151.pck'
 data = loadFile(path_dt)
 
 data2 = loadFile(f'data/er_less/{num_img:05d}.pth')
@@ -55,7 +55,7 @@ lg_reg = []
 for i, sr in enumerate(sz_reg):
     if sr < mu_sz - .5 * sig_sz:
         sm_reg.append(i)
-    elif sr > mu_sz + 3 * sig_sz:
+    elif sr > mu_sz + 1 * sig_sz:
         lg_reg.append(i)
 
 lbl3 = np.copy(lbl2)

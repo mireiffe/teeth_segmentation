@@ -119,10 +119,11 @@ if __name__ == '__main__':
     er = plt.imread('/home/users/mireiffe/Documents/Python/TeethSeg/data/images/er1.png').mean(axis=-1)
     er = np.where(er < .5, 1., 0.)
 
-    for ni in range(55, 61):
+    for ni in range(1, 2):
         # T00001
-        er = loadFile(f'/home/users/mireiffe/Documents/Python/TeethSeg/data/net_ers/T{ni:05d}.pck')
+        er = loadFile(f'/home/users/mireiffe/Documents/Python/TeethSeg/data/net_ers_TC/T{ni:05d}.pck')
         er = np.where(er > .5, 1., 0.)
+        er = cv2.dilate(er, np.ones((3,3)), -1, iterations=1)
 
         dir_save = '/home/users/mireiffe/Documents/Python/TeethSeg/results'
         _dir = join(dir_save, f'test{ni}')
@@ -150,7 +151,7 @@ if __name__ == '__main__':
             fig = plt.figure()
             ax = fig.add_subplot(111)
 
-            gap = 3
+            gap = 2
             num_pts = 10
             len_cv = gap * (num_pts - 1) + num_pts
             iter = 10

@@ -77,6 +77,28 @@ class DownCV(nn.Module):
         return self.down_conv(x)
 
 
+class UpLayTC(nn.Module):
+    '''
+    Upscaling | Short connection => conv2d * 2
+    '''
+    def __init__(self, in_ch, out_ch, scalefactor=2):
+        super().__init__()
+        self.up = nn.Sequential(
+            nn.ConvTranspose2d(in_ch, in_ch, kernel_size=2, stride=2, bias=False),
+            nn.BatchNorm2d(in_ch),
+            nn.ReLU(inplace=True)
+        )
+        self.conv = nn.Sequential(
+            Conv2d(in_ch, out_ch, 5, padding=2, bias=False),
+            nn.BatchNorm2d(out_ch),
+            nn.ReLU(inplace=True)
+        )
+
+    def forward(self, x):
+        x = self.up(x)
+        return self.conv(x)
+
+
 class DownDCSC(nn.Module):
     '''
     2x2 Conv with stride 2 => DoubleConvSC

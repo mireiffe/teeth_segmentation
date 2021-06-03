@@ -131,3 +131,39 @@ class ResNeSt200(nn.Module):
             x = F.upsample_bilinear(x, (m, n))
         
         return self.out(x)
+
+
+class ResNeSt200_TC(nn.Module):
+    def __init__(self, in_ch, out_ch, act_fun='Sigmoid'):
+        super().__init__()
+        self.in_ch = in_ch
+        self.out_ch = out_ch
+        self.act_fun = act_fun
+
+        self._rsnst = resnest.resnest200(pretrained=False)
+
+        self.up1 = layers.UpLayTC(2048, 1024)
+        self.up2 = layers.UpLayTC(1024, 512)
+        self.up3 = layers.UpLayTC(512, 256)
+        self.up4 = layers.UpLayTC(256, 128)
+        self.up5 = layers.UpLayTC(128, 64)      # 256 x 256
+
+        self.out = layers.OutLayer(64, 1, act_fun)
+
+
+        # hub.list('zhanghang1989/ResNeSt', force_reload=True)
+        # resnest = hub.load('zhanghang1989/ResNeSt', 'resnest200', pretrained=False)
+
+    def forward(self, x):
+        m, n = x.shape[2:]
+        x  = self._rsnst(x)
+        x = self.up1(x)
+        x = self.up2(x)
+        x = self.up3(x)
+        x = self.up4(x)
+        x = self.up5(x)
+
+        if m != x.shape[2] or n != x.shape[3]:
+            x = F.upsample_bilinear(x, (m, n))
+        
+        return self.out(x)
