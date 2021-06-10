@@ -72,7 +72,7 @@ class EdgeRegion():
     def inference(self, net, dtype=torch.float):
         cfg_dt = self.config['DATASET']
 
-        if cfg_dt['name'] in {'er_labeled', 'er_less'}:
+        if cfg_dt['name'] in {'er_labeled', 'er_less', 'er_reset', 'er_reset_lvset'}:
             data_test = ErDataset(cfg_dt['path'], split=self.num_img, wid_dil='auto')
         else:
             raise NotImplementedError('There are no such dataset')

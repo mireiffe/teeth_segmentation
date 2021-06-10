@@ -44,17 +44,17 @@ def loadFile(path):
 if __name__=='__main__':
     args = get_args()
 
-    # num_imgs = range(1, 2)
-    # for ni in num_imgs:
-    #     # get edge regions from network
-    #     edrg = EdgeRegion(args.path_cfg, ni)
-    #     er = edrg.getEr()
-    #     savepck(er, f"data/net_ers_TC/T{ni:05d}.pck")
-    # os._exit(0)
+    num_imgs = range(1, 13)
+    for ni in num_imgs:
+        # get edge regions from network
+        edrg = EdgeRegion(args.path_cfg, ni)
+        er = edrg.getEr()
+        savepck(er, f"data/netTC_reset/T{ni:05d}.pck")
+    os._exit(0)
 
-    ## get edge regions from network
-    # edrg = EdgeRegion(args.path_cfg, args.num_img)
-    # er = edrg.getEr()
+    # get edge regions from network
+    edrg = EdgeRegion(args.path_cfg, args.num_img)
+    er = edrg.getEr()
 
     # plt.figure()
     # plt.imshow(er, 'gray')
