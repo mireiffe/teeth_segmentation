@@ -65,12 +65,12 @@ class Balloon():
             y, x = self.er.shape[:2]
             Y, X = np.indices([y, x])
 
-            self.radii = 20
+            self.radii = 15
 
             _init = sum([np.where((X-sd[0])**2 + (Y-sd[1])**2 < self.radii**2, 1, 0) 
                     for _i, sd in enumerate(seed_teeth)])
             _init = np.where(_init > 0, -1., 1.)
-        _init[130:141, 174:187] = 1
+        # _init[130:141, 174:187] = 1
         _init = np.expand_dims(_init, axis=-1)
         return np.where(self._er < .5, _init, 1.)
 

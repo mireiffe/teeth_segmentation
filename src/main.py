@@ -15,7 +15,7 @@ from balloon import Balloon
 
 
 tol = 0.01
-dir_save = '/home/users/mireiffe/Documents/Python/TeethSeg/results'
+dir_save = '/home/users/mireiffe/Documents/Python/TeethSeg/results/ResNeSt200TC_res'
 
 def get_args():
     parser = argparse.ArgumentParser(description='Balloon inflated segmentation',
@@ -44,17 +44,17 @@ def loadFile(path):
 if __name__=='__main__':
     args = get_args()
 
-    num_imgs = range(1, 13)
-    for ni in num_imgs:
-        # get edge regions from network
-        edrg = EdgeRegion(args.path_cfg, ni)
-        er = edrg.getEr()
-        savepck(er, f"data/netTC_reset/T{ni:05d}.pck")
-    os._exit(0)
+    # num_imgs = range(0, 1)
+    # for ni in num_imgs:
+    #     # get edge regions from network
+    #     edrg = EdgeRegion(args.path_cfg, ni)
+    #     er = edrg.getEr()
+    #     savepck(er, f"data/netTC_reset/T{ni:05d}.pck")
+    # os._exit(0)
 
-    # get edge regions from network
-    edrg = EdgeRegion(args.path_cfg, args.num_img)
-    er = edrg.getEr()
+    # # get edge regions from network
+    # edrg = EdgeRegion(args.path_cfg, args.num_img)
+    # er = edrg.getEr()
 
     # plt.figure()
     # plt.imshow(er, 'gray')
@@ -81,9 +81,12 @@ if __name__=='__main__':
         
         er = er + er_
 
-    for ni in [1]:
+    num_imgs = range(1, 13)
+
+    for ni in num_imgs:
         # er = cv2.dilate(loadFile('results/er_test.pck'), np.ones((3,3)), iterations=1)
-        er = loadFile(f'results/er_dil_iter5_TC/er_test{ni:05d}.pck')
+        # er = loadFile(f'results/er_dil_iter5_TC/er_test{ni:05d}.pck')
+        er = loadFile(f'results/ResNeSt200TC_res/er_test{ni:05d}.pck')
         er = skeletonize(er)
         er = cv2.dilate(np.where(er > .5, 1., 0.), np.ones((3, 3)), iterations=1)[2:-2, 2:-2]
 
@@ -105,7 +108,7 @@ if __name__=='__main__':
         _k = 0
         while True:
             _vis = _k % 10 == 0
-            _save = _k % 3 == 4
+            _save = _k % 3 == 0
 
             _k += 1
             _reinit = _k % 10 == 0
@@ -125,7 +128,7 @@ if __name__=='__main__':
                 if _vis: plt.pause(.5)
             
             err = np.abs(new_phis - phis).sum() / np.ones_like(phis).sum()
-            if (err < tol) or _k > 300:
+            if (err < tol) or _k > 200:
                 break
 
             if _reinit:

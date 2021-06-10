@@ -93,35 +93,36 @@ def saveFile(dict, path):
 
 
 if __name__ == '__main__':
-    _sz = 128, 128
-    _c = _sz[0] // 2, _sz[1] // 2
-    # _r = (_sz[0] + _sz[1]) // 20
-    _r = 20
-    ang = 20 * np.pi / 180        # degree
+    # _sz = 128, 128
+    # _c = _sz[0] // 2, _sz[1] // 2
+    # # _r = (_sz[0] + _sz[1]) // 20
+    # _r = 20
+    # ang = 20 * np.pi / 180        # degree
 
-    [X, Y] = np.indices((_sz[0], _sz[1]))
-    cdt1 = (X - _c[0])**2 + (Y - _c[1])**2 < _r**2
-    cdt2 = (X - _c[0])**2 + (Y - _c[1])**2 >= (_r - 2)**2
-    er = np.where(cdt1 * cdt2, 1., 0.)
-    er = np.where(((Y - _c[1]) - np.tan(ang) * (X - _c[0]) < 0) * ((Y - _c[1]) + np.tan(ang) * (X - _c[0])) > 0, 0., er)
+    # [X, Y] = np.indices((_sz[0], _sz[1]))
+    # cdt1 = (X - _c[0])**2 + (Y - _c[1])**2 < _r**2
+    # cdt2 = (X - _c[0])**2 + (Y - _c[1])**2 >= (_r - 2)**2
+    # er = np.where(cdt1 * cdt2, 1., 0.)
+    # er = np.where(((Y - _c[1]) - np.tan(ang) * (X - _c[0]) < 0) * ((Y - _c[1]) + np.tan(ang) * (X - _c[0])) > 0, 0., er)
 
-    er_ = np.zeros_like(er)
-    for x in zip(range(61, 67), range(61, 67)):
-        er_[x[0], x[1]] = 1
-    for x in zip(range(62, 68), range(61, 67)):
-        er_[x[0], x[1]] = 1
-    for x in zip(range(63, 69), range(61, 67)):
-        er_[x[0], x[1]] = 1
+    # er_ = np.zeros_like(er)
+    # for x in zip(range(61, 67), range(61, 67)):
+    #     er_[x[0], x[1]] = 1
+    # for x in zip(range(62, 68), range(61, 67)):
+    #     er_[x[0], x[1]] = 1
+    # for x in zip(range(63, 69), range(61, 67)):
+    #     er_[x[0], x[1]] = 1
     
     
-    er = er + er_
+    # er = er + er_
 
-    er = plt.imread('/home/users/mireiffe/Documents/Python/TeethSeg/data/images/er1.png').mean(axis=-1)
-    er = np.where(er < .5, 1., 0.)
+    # er = plt.imread('/home/users/mireiffe/Documents/Python/TeethSeg/data/images/er1.png').mean(axis=-1)
+    # er = np.where(er < .5, 1., 0.)
 
-    for ni in range(1, 2):
+    for ni in range(2, 13):
         # T00001
-        er = loadFile(f'/home/users/mireiffe/Documents/Python/TeethSeg/data/net_ers_TC/T{ni:05d}.pck')
+        # er = loadFile(f'/home/users/mireiffe/Documents/Python/TeethSeg/data/net_ers_TC/T{ni:05d}.pck')
+        er = loadFile(f'/home/users/mireiffe/Documents/Python/TeethSeg/data/netTC_reset/T{ni:05d}.pck')
         er = np.where(er > .5, 1., 0.)
         er = cv2.dilate(er, np.ones((3,3)), -1, iterations=1)
 
@@ -135,7 +136,7 @@ if __name__ == '__main__':
         rein = Reinitial()
         COH = Coherent(sig=1, rho=10)
 
-        for kk in range(5):
+        for kk in range(3):
             psi = rein.getSDF(.5 - er)
 
 
@@ -148,17 +149,17 @@ if __name__ == '__main__':
             _gx, _gy = COH.imgrad(_psi)
             _ng = np.sqrt(_gx ** 2 + _gy ** 2)
 
-            fig = plt.figure()
-            ax = fig.add_subplot(111)
-
-            gap = 2
+            gap = 3
             num_pts = 10
             len_cv = gap * (num_pts - 1) + num_pts
-            iter = 10
-            _l = 10
+            iter = 3
+            _l = 3
 
-            mng = plt.get_current_fig_manager()
-            mng.window.showMaximized()
+            if kk == 2:
+                fig = plt.figure()
+                ax = fig.add_subplot(111)
+                mng = plt.get_current_fig_manager()
+                mng.window.showMaximized()
                 
             # find end points
             ind_ek = np.where(ek > .5)
@@ -186,7 +187,7 @@ if __name__ == '__main__':
                 
             [Y, X] = np.indices(_sz)
             ss = 1 / gap / 5
-            pts = np.arange(0, -5, -ss)
+            pts = np.arange(0, -_l, -ss)
             new_er = np.zeros_like(er)
             banned = np.zeros((len(ind_cv), 1))
             for k, pt in enumerate(pts[1:]):
@@ -208,8 +209,8 @@ if __name__ == '__main__':
                     if yy >= _sz[0] or xx >= _sz[1]:
                         banned[iii] = 1
                         continue
-                    # elif psi[_yy, _xx] > psi[yy, xx]:
-                    elif _ng[yy, xx] < .75 and _psi[yy, xx] > 0:
+                    elif psi[_yy, _xx] > psi[yy, xx]:
+                    # elif _ng[yy, xx] < .75 and _psi[yy, xx] > 0:
                         banned[iii] = 1
                         continue
                     # elif ek[yy, xx] > .5 and psi[yy, xx] > 0:
@@ -221,14 +222,16 @@ if __name__ == '__main__':
                     ek = np.where(new_er + ek > .5, 1., 0.)
                     # ek = skeletonize(ek)
                     
-                    ax.cla()
-                    ax.imshow(ek, 'gray')
-                    for idx in ind_cv:
-                        _y, _x = list(zip(*idx[::gap]))
-                        ax.plot(_x, _y, 'r.-')
-                    ax.imshow(new_er, alpha=.5)
-                    ax.set_title(f'step {kk + 1}')
-                    plt.pause(.1)
+                    if kk == 2:
+                        ax.cla()
+                        ax.imshow(ek, 'gray')
+                        for idx in ind_cv:
+                            _y, _x = list(zip(*idx[::gap]))
+                            ax.plot(_x, _y, 'r.-')
+                        ax.imshow(new_er, alpha=.5)
+                        ax.set_title(f'step {kk + 1}')
+                        plt.pause(.1)
+
                     # plt.show()
                     # try:
                     #     os.mkdir(_dir)
@@ -239,5 +242,5 @@ if __name__ == '__main__':
 
             er = cv2.dilate(np.where(ek > .5, 1., 0.), np.ones((3,3)), iterations=1)
 
-        saveFile(er, dir_save + f'/er_test{ni:05d}.pck')
+        saveFile(er, dir_save + f'/ResNeSt200TC_res/er_test{ni:05d}.pck')
         pass
