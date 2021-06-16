@@ -13,14 +13,16 @@ from _networks import model
 
 
 class EdgeRegion():
-    def __init__(self, path_cfg, num_img):
+    def __init__(self, args, num_img):
         self.num_img = num_img
 
         self.config = ConfigParser(allow_no_value=True, interpolation=ExtendedInterpolation())
         self.config.optionxform = str
-        self.config.read(path_cfg)
+        self.config.read(args.path_cfg)
 
         self.config['DEFAULT']['HOME'] = abspath(join(dirname(abspath(__file__)), *[os.pardir]))
+        
+        if args.device: self.config['TRAIN'].update({'decvice': args.device[0], 'device_ids': args.device[1]})
 
         # set main device and devices
         cfg_train = self.config['TRAIN']
@@ -33,9 +35,10 @@ class EdgeRegion():
         net = self.setModel()
         net.eval()
         with torch.no_grad():
-            _er = self.inference(net)
+            _img, _er = self.inference(net)
+        img = torch.Tensor.cpu(_img).squeeze().permute(1, 2, 0).numpy()
         er = torch.Tensor.cpu(_er).squeeze().numpy()
-        return er
+        return img, er
 
     def setModel(self):
         cfg_dft = self.config['DEFAULT']
@@ -89,14 +92,12 @@ class EdgeRegion():
             m, n = imgs.shape[2:4]
             mi = (m - om) // 2
             ni = (n - on) // 2
-        return preds[..., mi:mi + om, ni:ni + on]
+        return imgs[..., mi:mi + om, ni:ni + on], preds[..., mi:mi + om, ni:ni + on]
 
 
 if __name__=='__main__':
     _er = EdgeRegion('/home/users/mireiffe/Documents/Python/TeethSeg/cfg/inference.ini', 51)
-    er = _er.getEr()
-
-    
+    img, er = _er.getEr()
 
     plt.imshow(er > .5, 'gray')
     plt.show()
