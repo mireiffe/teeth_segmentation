@@ -71,7 +71,29 @@ if __name__=='__main__':
         er0 = _dt['output']
 
         CD = CurveDilate(er0)
-        
+        num_dil = 5
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        mng = plt.get_current_fig_manager()
+        mng.window.showMaximized()
+        for i in range(num_dil):
+            CD.dilCurve()
+
+            ax.cla()
+            ax.imshow(img)
+            ax.imshow(CD.sk, 'gray', alpha=.3)
+            for idx in CD.ind_end:
+                _y, _x = list(zip(*idx[::CD.gap]))
+                ax.plot(_x, _y, 'r.-')
+            ax.imshow(CD.new_er, alpha=.2)
+            ax.set_title(f'step {i + 1}')
+            plt.pause(.1)
+
+            # CD.er = cv2.dilate(CD.er, np.ones((3, 3)), -1, iterations=1)
+            CD.reSet()
+
+            pass
 
         
 
