@@ -17,8 +17,7 @@ class Balloon():
     dir_cfg = 'cfg/info_initial.yml'
     dir_img = '/home/users/mireiffe/Documents/Python/TeethSeg/data/er_less'
 
-    def __init__(self, num_img:int, er:np.ndarray, wid:int, radii='auto', dt:float=0.1):
-        self.num_img = num_img
+    def __init__(self, er:np.ndarray, wid:int, radii='auto', dt:float=0.1):
         self.er = er
         self._er = np.expand_dims(np.where(er > .5, 1., 0.), axis=2)
         self.radii = radii
@@ -48,7 +47,7 @@ class Balloon():
     def getInitials(self) -> list:
         # get initial seeds
         with open(self.dir_cfg) as f:
-            seeds = yaml.load(f, Loader=yaml.FullLoader)[f"T{self.num_img:05d}"]
+            seeds = yaml.load(f, Loader=yaml.FullLoader)[f"T{-3:05d}"]
         if 'circles' in seeds:
             rad_c = seeds['circles'][0]
             Y, X = np.indices([3 * rad_c, 3 * rad_c])

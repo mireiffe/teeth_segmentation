@@ -39,6 +39,9 @@ def get_args():
     parser.add_argument("--make_er", dest="make_er", type=bool, default=False,
                              required=False, metavar="ER",
                              help="Network inference for making edge region")
+    parser.add_argument("--repair_er", dest="repair_er", type=bool, default=False,
+                             required=False, metavar="ER",
+                             help="Repair the edge region")
     parser.add_argument("--cfg", dest="path_cfg", type=str, default=False,
                              required=False, metavar="CFG", 
                              help="configuration file")
@@ -46,7 +49,7 @@ def get_args():
 
 if __name__=='__main__':
     args = get_args()
-    imgs = args.imgs if args.imgs else [0]
+    imgs = args.imgs if args.imgs else [1]
 
     dir_sv = 'data/netTC_210617/'
 
@@ -70,8 +73,37 @@ if __name__=='__main__':
         img = _dt['input']
         er0 = _dt['output']
 
-        CD = CurveDilate(er0)
-        num_dil = 5
+        CD = CurveDilate(np.where(er0 > .5, 1., 0.))
+
+        # plt.figure()
+        # plt.subplot(2, 3, 1)
+        # plt.imshow(img)
+        # plt.title('Original image')
+        # # plt.subplot(2, 3, 2)
+        # # plt.imshow(img)
+        # # plt.imshow(er0, 'gray', alpha=.6)
+        # plt.subplot(2, 3, 4)
+        # plt.imshow(img)
+        # plt.imshow(np.where(er0 > .5, 1., 0.), 'gray', alpha=.7)
+        # plt.title('Output (thresholded)')
+        # plt.subplot(2, 3, 2)
+        # plt.imshow(img)
+        # _er = cv2.dilate(np.where(er0 > .5, 1., 0.), np.ones((5, 5)), -1, iterations=1)
+        # _er = cv2.erode(_er, np.ones((5, 5)), -1, iterations=1)
+        # plt.imshow(_er, 'gray', alpha=.7)
+        # plt.title('Dilation & Erosion')
+        # plt.subplot(2, 3, 3)
+        # plt.imshow(img)
+        # plt.imshow(CD.er, 'gray', alpha=.7)
+        # plt.title('Fill the holes')
+        # plt.subplot(2, 3, 5)
+        # plt.imshow(img)
+        # plt.imshow(skeletonize(_er), 'gray', alpha=.7)
+        # plt.subplot(2, 3, 6)
+        # plt.imshow(img)
+        # plt.imshow(CD.sk, 'gray', alpha=.7)
+
+        num_dil = 2
 
         fig = plt.figure()
         ax = fig.add_subplot(111)
@@ -94,6 +126,46 @@ if __name__=='__main__':
             CD.reSet()
 
             pass
+
+        er = cv2.dilate(CD.sk.astype(float), np.ones((3, 3)), -1, iterations=1)
+        bln = Balloon(er, wid=5, radii='auto', dt=0.05)
+        phis = bln.phis0
+
+        fig, ax = bln.setFigure(phis)
+        mng = plt.get_current_fig_manager()
+        mng.window.showMaximized()
+        
+        tol = 0.01
+        _k = 0
+        while True:
+            _vis = _k % 5 == 0
+            _save = _k % 3 == 3
+
+            _k += 1
+            _reinit = _k % 10 == 0
+
+            new_phis = bln.update(phis)
+            print(f"\riteration: {_k}", end='')
+
+            if _save or _vis:
+                bln.drawContours(_k, phis, ax)
+                _dir = join('results', f'test_lvset_TC{ni:05d}')
+                try:
+                    os.mkdir(_dir)
+                    print(f"Created save directory {_dir}")
+                except OSError:
+                    pass
+                if _save: plt.savefig(join(_dir, f"test{_k:05d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+                if _vis: plt.pause(.1)
+            
+            err = np.abs(new_phis - phis).sum() / np.ones_like(phis).sum()
+            if (err < tol) or _k > 200:
+                break
+
+            if _reinit:
+                new_phis = np.where(new_phis < 0, -1., 1.)
+                new_phis = bln.reinit.getSDF(new_phis)
+            phis = new_phis
 
         
 
