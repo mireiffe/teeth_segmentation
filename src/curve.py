@@ -8,8 +8,44 @@ import cv2
 import matplotlib.pyplot as plt
 
 from shockFilter import coherence_filter
+from skimage.measure import label
+
 from reinitial import Reinitial
 
+
+class CurveDilate():
+    def __init__(self, er):
+        self.er = er
+
+
+    def removeHoles(self, param_sz=1000):
+        m, n = self.er.shape
+        lbl = label(self.er, background=1, connectivity=1)
+        del_tol = m * n / param_sz
+        for lbl_i in range(1, np.max(lbl) + 1):
+            idx_i = np.where(lbl == lbl_i)
+            num_i = len(idx_i[0])
+            if num_i < del_tol:
+                self.er[idx_i] = 1
+
+    def skeletonize(self):
+        '''
+        skeletonization of edge region
+        '''
+        rein = Reinitial()
+        psi = rein.getSDF(.5 - self.er)
+        gx, gy = self.imgrad(psi)
+        ng = np.sqrt(gx ** 2 + gy ** 2)
+        
+        self.sk_er = np.where((ng < .80) * self.er, 1., 0.)
+        self.sk_er = skeletonize(self.sk_er)
+
+    @staticmethod
+    def imgrad(img) -> np.ndarray:
+        # ksize = 1: central, ksize = 3: sobel, ksize = -1:scharr
+        gx = cv2.Sobel(img, -1, 1, 0, ksize=1, borderType=cv2.BORDER_REFLECT)
+        gy = cv2.Sobel(img, -1, 0, 1, ksize=1, borderType=cv2.BORDER_REFLECT)
+        return gx / 2, gy / 2
 
 class Coherent():
     eps = np.finfo(float).eps

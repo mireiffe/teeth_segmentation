@@ -14,6 +14,7 @@ from skimage.measure import label
 from edge_region import EdgeRegion
 from balloon import Balloon
 from reinitial import Reinitial
+from curve import CurveDilate
 
 
 def saveFile(dict, fname):
@@ -25,12 +26,6 @@ def loadFile(path):
     with open(path, 'rb') as f:
         dict = pickle.load(f)
     return dict
-
-def imgrad(img) -> np.ndarray:
-        # ksize = 1: central, ksize = 3: sobel, ksize = -1:scharr
-        gx = cv2.Sobel(img, -1, 1, 0, ksize=1, borderType=cv2.BORDER_REFLECT)
-        gy = cv2.Sobel(img, -1, 0, 1, ksize=1, borderType=cv2.BORDER_REFLECT)
-        return gx / 2, gy / 2
 
 def get_args():
     parser = argparse.ArgumentParser(description='Balloon inflated segmentation',
@@ -53,7 +48,7 @@ if __name__=='__main__':
     args = get_args()
     imgs = args.imgs if args.imgs else [0]
 
-    dir_sv = 'data/netTC_210616/'
+    dir_sv = 'data/netTC_210617/'
 
     if args.make_er:
         try:
@@ -74,30 +69,9 @@ if __name__=='__main__':
         
         img = _dt['input']
         er0 = _dt['output']
-        m, n, c = img.shape
 
-        er = np.where(er0 > .5, 1., 0.)
-        # can't use dilation-erosion cuz too narrow gaps
-        # er = cv2.dilate(er, np.ones((5, 5)), -1, iterations=1)
-        # er = cv2.erode(er, np.ones((5, 5)), -1, iterations=1)
-        lbl = label(er, background=1, connectivity=1)
-        del_tol = m * n / 1000
-        for lbl_i in range(1, np.max(lbl) + 1):
-            idx_i = np.where(lbl == lbl_i)
-            num_i = len(idx_i[0])
-            if num_i < del_tol:
-                er[idx_i] = 1
-
-        rein = Reinitial()
-        psi = rein.getSDF(.5 - er)
+        CD = CurveDilate(er0)
         
-        gx, gy = imgrad(psi)
-        ng = np.sqrt(gx ** 2 + gy ** 2)
-        ec = np.where((ng < .90) * (er > .5), 1., 0.)
-        ek = skeletonize(ec)
 
-        plt.imshow(er, 'gray')
-        plt.imshow(ek, alpha=.5)
-        plt.show()
-
+        
 
