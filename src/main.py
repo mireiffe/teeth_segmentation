@@ -14,7 +14,7 @@ from skimage.measure import label
 from edge_region import EdgeRegion
 from balloon import Balloon
 from reinitial import Reinitial
-from curve import CurveDilate
+from curve import CurveProlong
 
 
 def saveFile(dict, fname):
@@ -49,7 +49,7 @@ def get_args():
 
 if __name__=='__main__':
     args = get_args()
-    imgs = args.imgs if args.imgs else [1]
+    imgs = args.imgs if args.imgs else [11]
 
     dir_sv = 'data/netTC_210617/'
 
@@ -67,14 +67,27 @@ if __name__=='__main__':
             print(f"Edge region: {join(dir_sv, f'T{ni:05d}.pck')} is saved!!")
         os._exit(0)
 
+    _dir0 = join('results', f'erTC_210624/')
+    try:
+        os.mkdir(_dir0)
+        print(f"Created save directory {_dir0}")
+    except OSError:
+        pass
+
     for ni in imgs:
         _dt = loadFile(join(dir_sv, f'T{ni:05d}.pck'))
-        
+        _dir = join(_dir0, f'{ni:05d}/')
+        try:
+            os.mkdir(_dir)
+            print(f"Created save directory {_dir}")
+        except OSError:
+            pass
+
         if args.repair_er:
             img = _dt['input']
             er0 = _dt['output']
 
-            CD = CurveDilate(np.where(er0 > .5, 1., 0.))
+            CD = CurveProlong(np.where(er0 > .5, 1., 0.), img)
 
             # plt.figure()
             # plt.subplot(2, 3, 1)
@@ -138,6 +151,7 @@ if __name__=='__main__':
             
             tol = 0.01
             _k = 0
+
             while True:
                 _vis = _k % 5 == 0
                 _save = _k % 3 == 3
@@ -150,18 +164,13 @@ if __name__=='__main__':
 
                 if _save or _vis:
                     bln.drawContours(_k, phis, ax)
-                    _dir = join('results', f'erTC_210617{ni:05d}')
-                    try:
-                        os.mkdir(_dir)
-                        print(f"Created save directory {_dir}")
-                    except OSError:
-                        pass
                     if _save: plt.savefig(join(_dir, f"test{_k:05d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
                     if _vis: plt.pause(.1)
                 
                 err = np.abs(new_phis - phis).sum() / np.ones_like(phis).sum()
                 if (err < tol) or _k > 200:
-                    saveFile({'img': img, 'er': er, 'phis': new_phis}, join(_dir, f"dict{_k:05d}.pck"))
+                    # saveFile({'img': img, 'er': er, 'phis': new_phis}, join(_dir, f"dict{_k:05d}.pck"))
+                    saveFile({'img': img, 'er': er, 'phis': new_phis}, join(_dir, f"dict.pck"))
                     break
 
                 if _reinit:
@@ -169,9 +178,9 @@ if __name__=='__main__':
                     new_phis = bln.reinit.getSDF(new_phis)
                 phis = new_phis
 
-        dt = loadFile(join('results', f'erTC_210617{ni:05d}/dict00201.pck'))
-        dt = loadFile(join('results', f'ResNeSt200TC_res/test_lvset_TC00000/dict00201.pck'))
-        data2 = loadFile(f'data/er_reset/{0:05d}.pth')
+        dt = loadFile(join(f'{_dir}dict.pck'))
+        # dt = loadFile(join('results', f'ResNeSt200TC_res/test_lvset_TC00000/dict.pck'))
+        data2 = loadFile(f'data/er_reset/{ni:05d}.pth')
         img = data2['img']
         # img = dt['img']
         er = dt['er']
@@ -213,7 +222,7 @@ if __name__=='__main__':
         for i, sr in enumerate(sz_reg):
             if (sr < mu_sz - .5 * sig_sz) or sr < 50:
                 sm_reg.append(i)
-            elif sr > mu_sz + .8 * sig_sz:
+            elif sr > mu_sz + 1 * sig_sz:
                 lg_reg.append(i)
 
         lbl3 = np.copy(lbl2)
@@ -247,23 +256,38 @@ if __name__=='__main__':
 
         res = lbl4
         plt.figure()
+        # plt.subplot(2,2,1)
+        plt.imshow(lbl)
+        plt.savefig(f'{_dir}lbl1.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+        plt.figure()
+        # plt.subplot(2,2,2)
+        plt.imshow(lbl2)
+        plt.savefig(f'{_dir}lbl2.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+        plt.figure()
+        # plt.subplot(2,2,3)
+        plt.imshow(res)
+        plt.savefig(f'{_dir}lbl3.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+        plt.figure()
+        # plt.subplot(2,2,4)
+        plt.imshow(img)
+        clrs = ['r', 'g', 'b', 'c', 'm', 'y', 'k'] * 10
+        for i in range(np.max(res)):
+            plt.contour(np.where(res == i, -1., 1.), levels=[0], colors=clrs[i])
+        plt.savefig(f'{_dir}lbl3_c.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+
+        plt.close('all')
+        plt.figure()
         plt.subplot(2,2,1)
         plt.imshow(lbl)
-        # plt.savefig(f'results/ResNeSt200TC_res/t{ni:05d}_lbl1.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-        # plt.figure()
         plt.subplot(2,2,2)
         plt.imshow(lbl2)
-        # plt.savefig(f'results/ResNeSt200TC_res/t{ni:05d}_lbl2.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-        # plt.figure()
         plt.subplot(2,2,3)
         plt.imshow(res)
-        # plt.savefig(f'results/ResNeSt200TC_res/t{ni:05d}_lbl3.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-        # plt.figure()
         plt.subplot(2,2,4)
         plt.imshow(img)
         clrs = ['r', 'g', 'b', 'c', 'm', 'y', 'k'] * 10
         for i in range(np.max(res)):
             plt.contour(np.where(res == i, -1., 1.), levels=[0], colors=clrs[i])
-        # plt.savefig(f'results/ResNeSt200TC_res/t{ni:05d}_lbl3_c.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+        plt.savefig(f'{_dir}lbl3_c.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
         plt.show()
 

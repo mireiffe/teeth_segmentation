@@ -14,14 +14,17 @@ from skimage.measure import label
 from reinitial import Reinitial
 
 
-class CurveDilate():
+class CurveProlong():
     gap = 3
     num_pts = 10
     maxlen_cv = gap * (num_pts - 1) + num_pts
 
-    def __init__(self, er):
+    def __init__(self, er, img):
+        # er[151:153, 150:152] = 0
+        
         self.er0 = er
         self.er = er
+        self.img = img
         self.m, self.n = self.er.shape
 
         self.preSet()
@@ -30,12 +33,53 @@ class CurveDilate():
         self.removeHoles()
         self.skeletonize()
         self.endPoints()
+        plt.figure()
+        plt.imshow(self.er, 'gray')
+        self.dilation(wid=2)
+
+        self.removeHoles()
+        self.skeletonize()
+        plt.figure()
+        plt.imshow(self.sk, 'gray')
+        plt.show()
+        self.endPoints()
         self.findCurves()
 
     def reSet(self):
         self.sk = skeletonize(self.sk)
         self.endPoints()
         self.findCurves()
+
+    def dilation(self, wid=2):
+        # # Dilation by norm of gradient
+        # _img = self.gaussfilt(self.img.mean(axis=2), sig=2)
+        # gx, gy = self.imgrad(_img)
+        # ng = np.sqrt(gx ** 2 + gy ** 2)
+        # ker = np.ones((2*wid + 1, 2*wid + 1))
+        # mu = ng.sum() / np.where(ng > 0, 1, 0).sum()
+        # _er = np.where(ng <= mu * .1, self.er, 0.)
+        # _er = cv2.dilate(_er, ker, iterations=1)
+
+        _pre = np.zeros_like(self.er)
+        for idx in self.ind_end:
+            _pre[idx[0]] = 1
+
+        rad = 8
+        Y, X = np.indices([2 * rad + 1, 2 * rad + 1])
+        cen_pat = rad
+        ker = np.where((X - cen_pat)**2 + (Y - cen_pat)**2 <= rad**2, 1., 0.)
+        _pre = cv2.filter2D(_pre, -1, kernel=ker, borderType=cv2.BORDER_REFLECT)
+
+        # _ends = np.where(_pre == 1, self.er, 0)
+        # dil_ends = cv2.dilate(_ends, np.ones((3, 3)), iterations=2)
+
+        plt.imshow(self.sk, alpha=.5)
+        plt.imshow(_pre, 'Reds', alpha=.5)
+        plt.show()
+
+        dil_ends = _pre
+
+        self.er = np.where(dil_ends + self.er > .5, 1., 0.)
 
     def removeHoles(self, param_sz=1000):
         lbl = label(self.er, background=1, connectivity=1)
@@ -64,7 +108,8 @@ class CurveDilate():
         _end = np.zeros_like(self.sk)
         self.ind_end = []
         for iy, ix in zip(*_ind):
-            if self.sk[iy - 1:iy + 2, ix - 1:ix + 2].sum() < 3:
+            _ptch = self.sk[iy - 1:iy + 2, ix - 1:ix + 2]
+            if (_ptch.sum() < 3) and (_ptch.sum() > 0):
                 self.ind_end.append([(iy, ix)])
                 _end[iy, ix] = 1
 
@@ -139,6 +184,12 @@ class CurveDilate():
         gx = cv2.Sobel(img, -1, 1, 0, ksize=1, borderType=cv2.BORDER_REFLECT)
         gy = cv2.Sobel(img, -1, 0, 1, ksize=1, borderType=cv2.BORDER_REFLECT)
         return gx / 2, gy / 2
+
+    @staticmethod
+    def gaussfilt(img, sig=2, ksz=None, bordertype=cv2.BORDER_REFLECT):
+        if ksz is None:
+            ksz = ((2 * np.ceil(2 * sig) + 1).astype(int), (2 * np.ceil(2 * sig) + 1).astype(int))
+        return cv2.GaussianBlur(img, ksz, sig, borderType=bordertype)
 
 
 if __name__ == '__main__':
