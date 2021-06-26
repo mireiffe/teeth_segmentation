@@ -49,7 +49,7 @@ def get_args():
 
 if __name__=='__main__':
     args = get_args()
-    imgs = args.imgs if args.imgs else [11]
+    imgs = args.imgs if args.imgs else [2, 3, 4, 5, 8, 9, 10, 11, 12]
 
     dir_sv = 'data/netTC_210617/'
 
@@ -87,37 +87,17 @@ if __name__=='__main__':
             img = _dt['input']
             er0 = _dt['output']
 
+            plt.figure()
+            plt.imshow(img)
+            plt.savefig(f'{_dir}img.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+            plt.figure()
+            plt.imshow(er0, 'gray')
+            plt.savefig(f'{_dir}er0.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+
+
             CD = CurveProlong(np.where(er0 > .5, 1., 0.), img)
 
-            # plt.figure()
-            # plt.subplot(2, 3, 1)
-            # plt.imshow(img)
-            # plt.title('Original image')
-            # # plt.subplot(2, 3, 2)
-            # # plt.imshow(img)
-            # # plt.imshow(er0, 'gray', alpha=.6)
-            # plt.subplot(2, 3, 4)
-            # plt.imshow(img)
-            # plt.imshow(np.where(er0 > .5, 1., 0.), 'gray', alpha=.7)
-            # plt.title('Output (thresholded)')
-            # plt.subplot(2, 3, 2)
-            # plt.imshow(img)
-            # _er = cv2.dilate(np.where(er0 > .5, 1., 0.), np.ones((5, 5)), -1, iterations=1)
-            # _er = cv2.erode(_er, np.ones((5, 5)), -1, iterations=1)
-            # plt.imshow(_er, 'gray', alpha=.7)
-            # plt.title('Dilation & Erosion')
-            # plt.subplot(2, 3, 3)
-            # plt.imshow(img)
-            # plt.imshow(CD.er, 'gray', alpha=.7)
-            # plt.title('Fill the holes')
-            # plt.subplot(2, 3, 5)
-            # plt.imshow(img)
-            # plt.imshow(skeletonize(_er), 'gray', alpha=.7)
-            # plt.subplot(2, 3, 6)
-            # plt.imshow(img)
-            # plt.imshow(CD.sk, 'gray', alpha=.7)
-
-            num_dil = 2
+            num_dil = 3
 
             fig = plt.figure()
             ax = fig.add_subplot(111)
@@ -288,6 +268,6 @@ if __name__=='__main__':
         clrs = ['r', 'g', 'b', 'c', 'm', 'y', 'k'] * 10
         for i in range(np.max(res)):
             plt.contour(np.where(res == i, -1., 1.), levels=[0], colors=clrs[i])
-        plt.savefig(f'{_dir}lbl3_c.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+        plt.savefig(f'{_dir}lbl3_all.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
         plt.show()
 

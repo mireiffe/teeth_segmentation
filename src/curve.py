@@ -32,16 +32,27 @@ class CurveProlong():
     def preSet(self):
         self.removeHoles()
         self.skeletonize()
+
+        plt.figure()
+        plt.imshow(self.img)
+        plt.imshow(self.sk, 'gray', alpha=.5)
+        plt.savefig(f'results/erTC_210624/{0:05d}/skel0.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+
         self.endPoints()
+        self.dilation(wid=2)
+
         plt.figure()
         plt.imshow(self.er, 'gray')
-        self.dilation(wid=2)
+        plt.savefig(f'results/erTC_210624/{0:05d}/er_mid.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
 
         self.removeHoles()
         self.skeletonize()
+
         plt.figure()
-        plt.imshow(self.sk, 'gray')
-        plt.show()
+        plt.imshow(self.img)
+        plt.imshow(self.sk, 'gray', alpha=.5)
+        plt.savefig(f'results/erTC_210624/{0:05d}/skel.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+
         self.endPoints()
         self.findCurves()
 
@@ -64,7 +75,7 @@ class CurveProlong():
         for idx in self.ind_end:
             _pre[idx[0]] = 1
 
-        rad = 8
+        rad = 10
         Y, X = np.indices([2 * rad + 1, 2 * rad + 1])
         cen_pat = rad
         ker = np.where((X - cen_pat)**2 + (Y - cen_pat)**2 <= rad**2, 1., 0.)
@@ -73,9 +84,11 @@ class CurveProlong():
         # _ends = np.where(_pre == 1, self.er, 0)
         # dil_ends = cv2.dilate(_ends, np.ones((3, 3)), iterations=2)
 
+        plt.figure()
+        plt.imshow(self.er, 'gray')
         plt.imshow(self.sk, alpha=.5)
         plt.imshow(_pre, 'Reds', alpha=.5)
-        plt.show()
+        plt.savefig(f'results/erTC_210624/{0:05d}/ends.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
 
         dil_ends = _pre
 
