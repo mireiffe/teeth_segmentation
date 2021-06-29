@@ -16,6 +16,7 @@ from edge_region import EdgeRegion
 from balloon import Balloon
 from reinitial import Reinitial
 from curve import CurveProlong
+from post import PostProc
 
 
 def saveFile(dict, fname):
@@ -74,8 +75,8 @@ if __name__=='__main__':
     makeDir(dir_er)
 
     for ni in imgs:
-        dir_img = join(dir_result, f'{ni:05d}/')
-        makeDir(dir_img)
+        dir_resimg = join(dir_result, f'{ni:05d}/')
+        makeDir(dir_resimg)
         
         # Inference edge regions with a learned deep neural net
         if args.make_er:
@@ -94,10 +95,10 @@ if __name__=='__main__':
 
             plt.figure()
             plt.imshow(img)
-            plt.savefig(f'{dir_img}img.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+            plt.savefig(f'{dir_resimg}img.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
             plt.figure()
             plt.imshow(er0, 'gray')
-            plt.savefig(f'{dir_img}er0.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+            plt.savefig(f'{dir_resimg}er0.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
 
             CD = CurveProlong(np.where(er0 > .5, 1., 0.), img)
             num_dil = 2
@@ -146,129 +147,20 @@ if __name__=='__main__':
 
                 if _save or _vis:
                     bln.drawContours(_k, phis, ax)
-                    if _save: plt.savefig(join(dir_img, f"test{_k:05d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+                    if _save: plt.savefig(join(dir_resimg, f"test{_k:05d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
                     if _vis: plt.pause(.1)
                 
                 err = np.abs(new_phis - phis).sum() / np.ones_like(phis).sum()
                 if (err < tol) or _k > max_iter:
-                    saveFile({'img': img, 'er': er, 'phis': new_phis}, join(dir_img, f"dict.pck"))
+                    saveFile({'img': img, 'er': er, 'phis': new_phis}, join(dir_resimg, f"dict.pck"))
                     break
 
                 if _reinit:
                     new_phis = np.where(new_phis < 0, -1., 1.)
                     new_phis = bln.reinit.getSDF(new_phis)
                 phis = new_phis
+            continue
 
         if args.post_seg:
-            dt_post = loadFile(join(f'{dir_img}dict.pck'))
-            # dt = loadFile(join('results', f'ResNeSt200TC_res/test_lvset_TC00000/dict.pck'))
-            img = dt_post['img']
-            # img = dt['img']
-            er = dt_post['er']
-            phi = dt_post['phis'][..., 0]
-            m, n = er.shape
-
-            pre_res = np.where(phi < 0, 1., 0.)
-
-            lbl = label(pre_res, background=0, connectivity=1)
-            del_tol = m * n / 1000
-            for lbl_i in range(1, np.max(lbl) + 1):
-                idx_i = np.where(lbl == lbl_i)
-                num_i = len(idx_i[0])
-                if num_i < del_tol:
-                    lbl[idx_i] = 0
-            non_reg_idx = np.where(lbl == 0)
-
-            _lbl = np.zeros_like(lbl)
-            for idx in zip(*non_reg_idx):
-                dumy = np.zeros_like(lbl).astype(float)
-                dumy[idx] = 1.
-                while True:
-                    dumy = np.where(cv2.filter2D(dumy, -1, np.ones((3,3))) > .01, 1., 0.)
-                    _idx = np.where(dumy * (lbl != 0) > 0)
-                    if len(_idx[0]) > 0:
-                        _lbl[idx[0], idx[1]] = lbl[_idx[0][0], _idx[1][0]]
-                        break
-
-            lbl2 = lbl + _lbl
-
-            num_reg = np.max(lbl2) + 1
-            sz_reg = [np.sum(lbl2 == i + 1) for i in range(num_reg)]
-            mu_sz = sum(sz_reg) / num_reg
-            mu_sq = sum([sr ** 2 for sr in sz_reg]) / num_reg
-            sig_sz = np.sqrt(mu_sq - mu_sz ** 2)
-
-            sm_reg = []
-            lg_reg = []
-            for i, sr in enumerate(sz_reg):
-                if (sr < mu_sz - .5 * sig_sz) or sr < 50:
-                    sm_reg.append(i)
-                elif sr > mu_sz + 1 * sig_sz:
-                    lg_reg.append(i)
-
-            lbl3 = np.copy(lbl2)
-            idx2 = [np.where(lbl2 == i + 1) for i in range(num_reg)]
-
-            for lr in lg_reg[1:]:
-                lbl3[idx2[lr]] = lg_reg[0] + 1
-
-            # _lbl = np.zeros_like(lbl3)
-            # non_reg_idx2 = []
-            # for sr in sm_reg[1:]:
-            #     non_reg_idx2.append(np.where(lbl3 == sr))
-
-            # tt = np.ones_like(lbl3)
-            # for nri in non_reg_idx2:
-            #     for idx in zip(*nri):
-            #         tt[idx] = 0
-
-            # for nri in non_reg_idx2:
-            #     for idx in zip(*nri):
-            #         dumy = np.zeros_like(lbl).astype(float)
-            #         dumy[idx] = 1.
-            #         while True:
-            #             dumy = np.where(cv2.filter2D(dumy, -1, np.ones((3,3))) > .01, 1., 0.)
-            #             _idx = np.where(dumy * tt > 0)
-            #             if len(_idx[0]) > 0:
-            #                 _lbl[idx[0], idx[1]] = lbl3[_idx[0][0], _idx[1][0]]
-            #                 break
-
-            lbl4 = lbl3
-
-            res = lbl4
-            plt.figure()
-            # plt.subplot(2,2,1)
-            plt.imshow(lbl)
-            plt.savefig(f'{dir_img}lbl1.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-            plt.figure()
-            # plt.subplot(2,2,2)
-            plt.imshow(lbl2)
-            plt.savefig(f'{dir_img}lbl2.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-            plt.figure()
-            # plt.subplot(2,2,3)
-            plt.imshow(res)
-            plt.savefig(f'{dir_img}lbl3.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-            plt.figure()
-            # plt.subplot(2,2,4)
-            plt.imshow(img)
-            clrs = ['r', 'g', 'b', 'c', 'm', 'y', 'k'] * 10
-            for i in range(np.max(res)):
-                plt.contour(np.where(res == i, -1., 1.), levels=[0], colors=clrs[i])
-            plt.savefig(f'{dir_img}lbl3_c.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-
-            plt.close('all')
-            plt.figure()
-            plt.subplot(2,2,1)
-            plt.imshow(lbl)
-            plt.subplot(2,2,2)
-            plt.imshow(lbl2)
-            plt.subplot(2,2,3)
-            plt.imshow(res)
-            plt.subplot(2,2,4)
-            plt.imshow(img)
-            clrs = ['r', 'g', 'b', 'c', 'm', 'y', 'k'] * 10
-            for i in range(np.max(res)):
-                plt.contour(np.where(res == i, -1., 1.), levels=[0], colors=clrs[i])
-            plt.savefig(f'{dir_img}lbl3_all.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-            plt.show()
+            postProc = PostProc(dir_resimg)
 

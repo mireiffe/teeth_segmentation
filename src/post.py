@@ -1,4 +1,5 @@
-import os 
+import os
+from os.path import join
 
 import cv2
 import pickle
@@ -8,102 +9,94 @@ import matplotlib.pyplot as plt
 from skimage.measure import label
 
 
-def loadFile(path):
-    with open(path, 'rb') as f:
-        _dt = pickle.load(f)
-    return _dt
+class PostProc():
+    def __init__(self, dir_img) -> None:
+        self.dir_img = dir_img
 
+        path_seg = join(f'{dir_img}dict.pck')
+        _dt = self.loadFile(path_seg)
+        self.img = _dt['img']
+        self.er = _dt['er']
+        self.phi = _dt['phis'][..., 0]
+        self.m, self.n = self.er.shape
 
-num_imgs = range(6, 13)
+        self.labeling()
+        self.zeroReg()
+        self.distSize()
+        self._saveSteps()
 
-for num_img in num_imgs:
-    path_dt = f'results/ResNeSt200TC_res/test_lvset_TC{num_img:05d}/dict00201.pck'
-    data = loadFile(path_dt)
+    def labeling(self):
+        '''
+        labeling connected region (0 value for not assigned region)
+        '''
+        seg_res = np.where(self.phi < 0, 1., 0.)
+        self.lbl = label(seg_res, background=0, connectivity=1)
+        del_tol = self.m * self.n / 1000
+        for lbl_i in range(1, np.max(self.lbl) + 1):
+            idx_i = np.where(self.lbl == lbl_i)
+            num_i = len(idx_i[0])
+            if num_i < del_tol:
+                self.lbl[idx_i] = 0
 
-    data2 = loadFile(f'data/er_reset/{num_img:05d}.pth')
-    img = data2['img']
+    def zeroReg(self):
+        '''
+        Assing 0 regions by using intensity values
+        '''
+        idx_zero_reg = np.where(self.lbl == 0)
+        _lbl = np.zeros_like(self.lbl)
+        for idx in zip(*idx_zero_reg):
+            dumy = np.zeros_like(self.lbl).astype(float)
+            dumy[idx] = 1.
+            while True:
+                dumy = np.where(cv2.filter2D(dumy, -1, np.ones((3,3))) > .01, 1., 0.)
+                _idx = np.where(dumy * (self.lbl != 0) > 0)
+                if len(_idx[0]) > 0:
+                    _lbl[idx[0], idx[1]] = self.lbl[_idx[0][0], _idx[1][0]]
+                    break
+        self.lbl2 = self.lbl + _lbl
 
-    er = data['er']
-    phi = data['phis'][..., 0]
+    def distSize(self):
+        '''
+        distribution for size of region
+        '''
+        num_reg = np.max(self.lbl2)
+        sz_reg = [np.sum(self.lbl2 == (i + 1)) for i in range(num_reg)]
 
-    pre_res = np.where(phi < 0, 1., 0.)
+        mu_sz = sum(sz_reg) / num_reg
+        mu_sz_2 = sum([sr ** 2 for sr in sz_reg]) / num_reg
+        sig_sz = np.sqrt(mu_sz_2 - mu_sz ** 2)
 
-    lbl = label(pre_res, background=0, connectivity=1)
+    def _saveSteps(self):
+        cv2.imwrite(f'{self.dir_img}lbl1.png', self.lbl, params=[cv2.IMWRITE_PNG_COMPRESSION,0])
+        cv2.imwrite(f'{self.dir_img}lbl2.png', self.lbl2, params=[cv2.IMWRITE_PNG_COMPRESSION,0])
+        # cv2.imwrite(f'{self.dir_img}lbl3.png', self.lbl, params=[cv2.IMWRITE_PNG_COMPRESSION,0])
+        # cv2.imwrite(f'{self.dir_img}lbl1.png', self.lbl, params=[cv2.IMWRITE_PNG_COMPRESSION,0])
 
-    non_reg_idx = np.where(phi >= 0)
+        # plt.figure()
+        # plt.imshow(self.img)
+        # clrs = ['r', 'g', 'b', 'c', 'm', 'y', 'k'] * 10
+        # for i in range(np.max(res)):
+        #     plt.contour(np.where(res == i, -1., 1.), levels=[0], colors=clrs[i])
+        # plt.savefig(f'{self.dir_img}lbl3_c.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
 
-    _lbl = np.zeros_like(lbl)
-    for idx in zip(*non_reg_idx):
-        dumy = np.zeros_like(lbl).astype(float)
-        dumy[idx] = 1.
-        while True:
-            dumy = np.where(cv2.filter2D(dumy, -1, np.ones((3,3))) > .01, 1., 0.)
-            _idx = np.where(dumy * pre_res > 0)
-            if len(_idx[0]) > 0:
-                _lbl[idx[0], idx[1]] = lbl[_idx[0][0], _idx[1][0]]
-                break
+        plt.close('all')
+        plt.figure()
+        plt.subplot(2,2,1)
+        plt.imshow(self.lbl)
+        plt.subplot(2,2,2)
+        plt.imshow(self.lbl2)
+        plt.subplot(2,2,3)
+        plt.imshow(res)
+        plt.subplot(2,2,4)
+        plt.imshow(self.img)
+        clrs = ['r', 'g', 'b', 'c', 'm', 'y', 'k'] * 10
+        for i in range(np.max(res)):
+            plt.contour(np.where(res == (i + 1), -1., 1.), levels=[0], colors=clrs[i])
+        plt.savefig(f'{self.dir_img}lbl3_all.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+        plt.show()
 
-    lbl2 = lbl + _lbl
-
-    num_reg = np.max(lbl2) + 1
-    sz_reg = [np.sum(lbl2 == i + 1) for i in range(num_reg)]
-    mu_sz = sum(sz_reg) / num_reg
-    mu_sq = sum([sr ** 2 for sr in sz_reg]) / num_reg
-    sig_sz = np.sqrt(mu_sq - mu_sz ** 2)
-
-    sm_reg = []
-    lg_reg = []
-    for i, sr in enumerate(sz_reg):
-        if (sr < mu_sz - .5 * sig_sz) or sr < 50:
-            sm_reg.append(i)
-        elif sr > mu_sz + 1 * sig_sz:
-            lg_reg.append(i)
-
-    lbl3 = np.copy(lbl2)
-    idx2 = [np.where(lbl2 == i + 1) for i in range(num_reg)]
-
-    for lr in lg_reg[1:]:
-        lbl3[idx2[lr]] = lg_reg[0] + 1
-
-    # _lbl = np.zeros_like(lbl3)
-    # non_reg_idx2 = []
-    # for sr in sm_reg[1:]:
-    #     non_reg_idx2.append(np.where(lbl3 == sr))
-
-    # tt = np.ones_like(lbl3)
-    # for nri in non_reg_idx2:
-    #     for idx in zip(*nri):
-    #         tt[idx] = 0
-
-    # for nri in non_reg_idx2:
-    #     for idx in zip(*nri):
-    #         dumy = np.zeros_like(lbl).astype(float)
-    #         dumy[idx] = 1.
-    #         while True:
-    #             dumy = np.where(cv2.filter2D(dumy, -1, np.ones((3,3))) > .01, 1., 0.)
-    #             _idx = np.where(dumy * tt > 0)
-    #             if len(_idx[0]) > 0:
-    #                 _lbl[idx[0], idx[1]] = lbl3[_idx[0][0], _idx[1][0]]
-    #                 break
-
-    lbl4 = lbl3
-
-    res = lbl4
-    plt.figure()
-    plt.imshow(lbl)
-    plt.savefig(f'results/ResNeSt200TC_res/t{num_img:05d}_lbl1.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-    plt.figure()
-    plt.imshow(lbl2)
-    plt.savefig(f'results/ResNeSt200TC_res/t{num_img:05d}_lbl2.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-    plt.figure()
-    plt.imshow(res)
-    plt.savefig(f'results/ResNeSt200TC_res/t{num_img:05d}_lbl3.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-    plt.figure()
-    plt.imshow(img)
-    clrs = ['r', 'g', 'b', 'c', 'm', 'y', 'k'] * 10
-    for i in range(np.max(res)):
-        plt.contour(np.where(res == i, -1., 1.), levels=[0], colors=clrs[i])
-    plt.savefig(f'results/ResNeSt200TC_res/t{num_img:05d}_lbl3_c.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-    # plt.show()
-
-pass
+    @staticmethod
+    def loadFile(path):
+        with open(path, 'rb') as f:
+            _dt = pickle.load(f)
+        return _dt
