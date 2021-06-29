@@ -19,42 +19,36 @@ class CurveProlong():
     num_pts = 10
     maxlen_cv = gap * (num_pts - 1) + num_pts
 
-    def __init__(self, er, img):
-        # er[151:153, 150:152] = 0
-        
+    def __init__(self, er, img, dir_save):
         self.er0 = er
         self.er = er
         self.img = img
+        self.dir_save = dir_save
         self.m, self.n = self.er.shape
 
         self.preSet()
+        plt.figure()
+        plt.imshow(self.img)
+        plt.imshow(self.sk, 'gray', alpha=.5)
+        plt.savefig(f'{self.dir_save}skel0.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+
+        self.dilation(wid=2)
+        plt.figure()
+        plt.imshow(self.er, 'gray')
+        plt.savefig(f'{self.dir_save}er_mid.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+
+        self.preSet()
+        plt.figure()
+        plt.imshow(self.img)
+        plt.imshow(self.sk, 'gray', alpha=.5)
+        plt.savefig(f'{self.dir_save}skel.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+
+        self.findCurves()
 
     def preSet(self):
         self.removeHoles()
         self.skeletonize()
-
-        plt.figure()
-        plt.imshow(self.img)
-        plt.imshow(self.sk, 'gray', alpha=.5)
-        plt.savefig(f'results/erTC_210624/{0:05d}/skel0.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-
         self.endPoints()
-        self.dilation(wid=2)
-
-        plt.figure()
-        plt.imshow(self.er, 'gray')
-        plt.savefig(f'results/erTC_210624/{0:05d}/er_mid.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-
-        self.removeHoles()
-        self.skeletonize()
-
-        plt.figure()
-        plt.imshow(self.img)
-        plt.imshow(self.sk, 'gray', alpha=.5)
-        plt.savefig(f'results/erTC_210624/{0:05d}/skel.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-
-        self.endPoints()
-        self.findCurves()
 
     def reSet(self):
         self.sk = skeletonize(self.sk)
@@ -71,15 +65,16 @@ class CurveProlong():
         # _er = np.where(ng <= mu * .1, self.er, 0.)
         # _er = cv2.dilate(_er, ker, iterations=1)
 
-        _pre = np.zeros_like(self.er)
+        self.dil_ends = np.zeros_like(self.er)
         for idx in self.ind_end:
-            _pre[idx[0]] = 1
+            self.dil_ends[idx[0]] = 1
 
-        rad = 10
+        wid_er = round((self.m + self.n) / 2 / 300)
+        rad = 3 * wid_er
         Y, X = np.indices([2 * rad + 1, 2 * rad + 1])
         cen_pat = rad
         ker = np.where((X - cen_pat)**2 + (Y - cen_pat)**2 <= rad**2, 1., 0.)
-        _pre = cv2.filter2D(_pre, -1, kernel=ker, borderType=cv2.BORDER_REFLECT)
+        self.dil_ends = cv2.filter2D(self.dil_ends, -1, kernel=ker, borderType=cv2.BORDER_REFLECT)
 
         # _ends = np.where(_pre == 1, self.er, 0)
         # dil_ends = cv2.dilate(_ends, np.ones((3, 3)), iterations=2)
@@ -87,12 +82,10 @@ class CurveProlong():
         plt.figure()
         plt.imshow(self.er, 'gray')
         plt.imshow(self.sk, alpha=.5)
-        plt.imshow(_pre, 'Reds', alpha=.5)
-        plt.savefig(f'results/erTC_210624/{0:05d}/ends.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+        plt.imshow(self.dil_ends, 'Reds', alpha=.5)
+        plt.savefig(f'{self.dir_save}ends.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
 
-        dil_ends = _pre
-
-        self.er = np.where(dil_ends + self.er > .5, 1., 0.)
+        self.er = np.where(self.dil_ends + self.er > .5, 1., 0.)
 
     def removeHoles(self, param_sz=1000):
         lbl = label(self.er, background=1, connectivity=1)

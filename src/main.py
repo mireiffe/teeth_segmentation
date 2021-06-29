@@ -8,13 +8,9 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
-from skimage.morphology import skeletonize
-from skimage.measure import label
-
 # custom libs
 from edge_region import EdgeRegion
 from balloon import Balloon
-from reinitial import Reinitial
 from curve import CurveProlong
 from post import PostProc
 
@@ -45,17 +41,17 @@ def get_args():
     parser.add_argument("--device", dest="device", nargs='+', type=str, default=0,
                              required=False, metavar="DVC",
                              help="name of dataset to use")
-    parser.add_argument("--make_er", dest="make_er", type=bool, default=False,
-                             required=False, metavar="MER", action='store_true',
+    parser.add_argument("--make_er", dest="make_er",
+                             required=False, action='store_true',
                              help="Network inference for making edge region")
-    parser.add_argument("--repair_er", dest="repair_er", type=bool, default=False,
-                             required=False, metavar="RER", action='store_true',
+    parser.add_argument("--repair_er", dest="repair_er",
+                             required=False, action='store_true',
                              help="Repair the edge region")
-    parser.add_argument("--seg_lvset", dest="seg_lvset", type=bool, default=False,
-                             required=False, metavar="SEG", action='store_true',
+    parser.add_argument("--seg_lvset", dest="seg_lvset",
+                             required=False, action='store_true',
                              help="Segmentation by using level set method")
-    parser.add_argument("--post_seg", dest="post_seg", type=bool, default=False,
-                             required=False, metavar="PST", action='store_true',
+    parser.add_argument("--post_seg", dest="post_seg",
+                             required=False, action='store_true',
                              help="Post process for segmentation")
     parser.add_argument("--cfg", dest="path_cfg", type=str, default=False,
                              required=False, metavar="CFG", 
@@ -64,12 +60,12 @@ def get_args():
 
 if __name__=='__main__':
     args = get_args()
-    imgs = args.imgs if args.imgs else [2, 3, 4, 5, 8, 9, 10, 11, 12]
+    imgs = args.imgs if args.imgs else [0]
 
-    current_time = time.strftime("%y%m%d", time.localtime(time.time()))
+    today = time.strftime("%y%m%d", time.localtime(time.time()))
     
     dir_er = 'data/netTC_210617/'
-    dir_result = join('results', f'er_net/{current_time}/')
+    dir_result = join('results', f'er_net/{today}/')
 
     makeDir(dir_result)
     makeDir(dir_er)
@@ -91,16 +87,17 @@ if __name__=='__main__':
         _dt = loadFile(join(dir_er, f'T{ni:05d}.pck'))
         if args.repair_er:
             img = _dt['input']
-            er0 = _dt['output']
+            output = _dt['output']
 
             plt.figure()
             plt.imshow(img)
             plt.savefig(f'{dir_resimg}img.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
             plt.figure()
-            plt.imshow(er0, 'gray')
+            plt.imshow(output, 'gray')
             plt.savefig(f'{dir_resimg}er0.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
 
-            CD = CurveProlong(np.where(er0 > .5, 1., 0.), img)
+            er0 = np.where(output > .5, 1., 0.)
+            CD = CurveProlong(er0, img, dir_resimg)
             num_dil = 2
 
             fig = plt.figure()
@@ -120,6 +117,8 @@ if __name__=='__main__':
                 ax.set_title(f'step {i + 1}')
                 plt.pause(.1)
 
+                plt.savefig(f'{dir_resimg}prolong_step{i + 1}.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+
                 CD.reSet()
             continue
 
@@ -138,7 +137,6 @@ if __name__=='__main__':
             while True:
                 _vis = _k % 5 == 0
                 _save = _k % 3 == 3
-
                 _k += 1
                 _reinit = _k % 10 == 0
 

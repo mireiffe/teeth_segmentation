@@ -14,8 +14,7 @@ from processing import Processing
 
 class Balloon():
     eps = np.finfo(float).eps
-    dir_cfg = 'cfg/info_initial.yml'
-    dir_img = '/home/users/mireiffe/Documents/Python/TeethSeg/data/er_less'
+    rad_init = 7
 
     def __init__(self, er:np.ndarray, wid:int, radii='auto', dt:float=0.1):
         self.er = er
@@ -46,30 +45,16 @@ class Balloon():
 
     def getInitials(self) -> list:
         # get initial seeds
-        with open(self.dir_cfg) as f:
-            seeds = yaml.load(f, Loader=yaml.FullLoader)[f"T{-3:05d}"]
-        if 'circles' in seeds:
-            rad_c = seeds['circles'][0]
-            Y, X = np.indices([3 * rad_c, 3 * rad_c])
-            cen_pat = 1.5 * rad_c - .5
-            pat = np.where((X - cen_pat)**2 + (Y - cen_pat)**2 < rad_c**2, -1., 1.)
+        rad = self.rad_init
+        Y, X = np.indices([3 * rad, 3 * rad])
+        cen_pat = 1.5 * rad - .5
+        pat = np.where((X - cen_pat)**2 + (Y - cen_pat)**2 < rad**2, -1., 1.)
 
-            y, x = self.er.shape[:2]
-            py, px = y - 3 * rad_c, x - 3 * rad_c
+        y, x = self.er.shape[:2]
+        py, px = y - 3 * rad, x - 3 * rad
 
-            gap = 2
-            _init = np.pad(pat, ((py // gap, py - py // gap), (px // gap, px - px // gap)), mode='symmetric')
-        else:
-            seed_teeth = seeds['teeth']
-            y, x = self.er.shape[:2]
-            Y, X = np.indices([y, x])
-
-            self.radii = 15
-
-            _init = sum([np.where((X-sd[0])**2 + (Y-sd[1])**2 < self.radii**2, 1, 0) 
-                    for _i, sd in enumerate(seed_teeth)])
-            _init = np.where(_init > 0, -1., 1.)
-        _init[30:41, 174:187] = 1
+        gap = 2
+        _init = np.pad(pat, ((py // gap, py - py // gap), (px // gap, px - px // gap)), mode='symmetric')
         _init = np.expand_dims(_init, axis=-1)
         return np.where(self._er < .5, _init, 1.)
 
@@ -89,7 +74,6 @@ class Balloon():
         _R = cv2.dilate(np.where((ng < skltn) * (phis > 0), 1., 0.), ker_R, iterations=1)
 
         _f = np.where(_R * _E * _T, 2., -1.)
-        # _f = np.where(_R * _T, 2., -1.)
         g_f = self.gaussfilt(_f, sig=.5)
         return np.expand_dims(g_f, axis=-1)
 

@@ -1,4 +1,3 @@
-import os
 from os.path import join
 
 import cv2
@@ -62,11 +61,13 @@ class PostProc():
         num_reg = np.max(self.lbl2)
         sz_reg = [np.sum(self.lbl2 == (i + 1)) for i in range(num_reg)]
 
-        mu_sz = sum(sz_reg) / num_reg
+        self.mu_sz = sum(sz_reg) / num_reg
         mu_sz_2 = sum([sr ** 2 for sr in sz_reg]) / num_reg
-        sig_sz = np.sqrt(mu_sz_2 - mu_sz ** 2)
+        self.sig_sz = np.sqrt(mu_sz_2 - self.mu_sz ** 2)
 
     def _saveSteps(self):
+        res = self.lbl2
+        
         cv2.imwrite(f'{self.dir_img}lbl1.png', self.lbl, params=[cv2.IMWRITE_PNG_COMPRESSION,0])
         cv2.imwrite(f'{self.dir_img}lbl2.png', self.lbl2, params=[cv2.IMWRITE_PNG_COMPRESSION,0])
         # cv2.imwrite(f'{self.dir_img}lbl3.png', self.lbl, params=[cv2.IMWRITE_PNG_COMPRESSION,0])
