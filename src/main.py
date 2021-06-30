@@ -96,7 +96,7 @@ if __name__=='__main__':
             plt.imshow(output, 'gray')
             plt.savefig(f'{dir_resimg}er0.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
 
-            er0 = np.where(output > .5, 1., 0.)
+            er0 = np.where(output > .3, 1., 0.)
             CD = CurveProlong(er0, img, dir_resimg)
             num_dil = 2
 
@@ -161,4 +161,5 @@ if __name__=='__main__':
 
         if args.post_seg:
             postProc = PostProc(dir_resimg)
+            continue
 

@@ -32,7 +32,7 @@ class CurveProlong():
         plt.imshow(self.sk, 'gray', alpha=.5)
         plt.savefig(f'{self.dir_save}skel0.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
 
-        self.dilation(wid=2)
+        self.dilation(wid_er=self.measureWidth())
         plt.figure()
         plt.imshow(self.er, 'gray')
         plt.savefig(f'{self.dir_save}er_mid.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
@@ -55,7 +55,34 @@ class CurveProlong():
         self.endPoints()
         self.findCurves()
 
-    def dilation(self, wid=2):
+    def measureWidth(self):
+        sk_idx = np.where(self.sk == 1)
+        tot_len = len(sk_idx[0])
+        np.random.seed(900314)
+        sel_idx = np.random.choice(tot_len, tot_len // 10, replace=False)
+
+        wid_er = []
+        for si in sel_idx:
+            _w = 0
+            _x = sk_idx[1][si]
+            _y = sk_idx[0][si]
+            while True:
+                y0 = _y-_w-1 if _y-_w-1 >= 0 else None
+                x0 = _x-_w-1 if _x-_w-1 >= 0 else None
+                _ptch = self.er0[y0:_y+_w+2, x0:_x+_w+2]
+                if _ptch.sum() < _ptch.size:
+                    wid_er.append((_w + 1) * 1)
+                    break
+                else:
+                    _w += 1
+        mu = sum(wid_er) / len(sel_idx)
+        sig = np.std(wid_er)
+        Z_45 = 1.65     # standard normal value for 90 %
+        wid = Z_45 * sig / np.sqrt(tot_len // 10) + mu
+        return wid
+
+
+    def dilation(self, wid_er):
         # # Dilation by norm of gradient
         # _img = self.gaussfilt(self.img.mean(axis=2), sig=2)
         # gx, gy = self.imgrad(_img)
@@ -69,8 +96,8 @@ class CurveProlong():
         for idx in self.ind_end:
             self.dil_ends[idx[0]] = 1
 
-        wid_er = round((self.m + self.n) / 2 / 300)
-        rad = 3 * wid_er
+        # wid_er = round((self.m + self.n) / 2 / 300)
+        rad = int(3 * wid_er)
         Y, X = np.indices([2 * rad + 1, 2 * rad + 1])
         cen_pat = rad
         ker = np.where((X - cen_pat)**2 + (Y - cen_pat)**2 <= rad**2, 1., 0.)

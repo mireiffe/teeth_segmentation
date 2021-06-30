@@ -12,8 +12,9 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "args": [
-                // "--repair_er", "Ture",
-                // "--make_er", "Ture",
+                "--repair_er",
+                // "--make_er",
+                // "--make_er",
                 // "--img", "-3",
                 // "--device", "cuda", "0",
                 // "--cfg", "cfg/inference.ini"
