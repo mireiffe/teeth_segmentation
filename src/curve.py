@@ -81,17 +81,7 @@ class CurveProlong():
         wid = Z_45 * sig / np.sqrt(tot_len // 10) + mu
         return wid
 
-
     def dilation(self, wid_er):
-        # # Dilation by norm of gradient
-        # _img = self.gaussfilt(self.img.mean(axis=2), sig=2)
-        # gx, gy = self.imgrad(_img)
-        # ng = np.sqrt(gx ** 2 + gy ** 2)
-        # ker = np.ones((2*wid + 1, 2*wid + 1))
-        # mu = ng.sum() / np.where(ng > 0, 1, 0).sum()
-        # _er = np.where(ng <= mu * .1, self.er, 0.)
-        # _er = cv2.dilate(_er, ker, iterations=1)
-
         self.dil_ends = np.zeros_like(self.er)
         for idx in self.ind_end:
             self.dil_ends[idx[0]] = 1
@@ -184,7 +174,7 @@ class CurveProlong():
                     continue
 
                 b = np.array(list(zip(*idx[::self.gap + 1]))).T
-                abc = np.linalg.lstsq(D, b, rcond=None)[0]
+                abc = np.linalg.lstsq(D[:len(b), :], b, rcond=None)[0]
                 abc[-1, :] = b[0]
 
                 yy = np.round(abc[0, 0] * pt * pt + abc[1, 0] * pt + abc[2, 0]).astype(int)

@@ -53,6 +53,9 @@ def get_args():
     parser.add_argument("--post_seg", dest="post_seg",
                              required=False, action='store_true',
                              help="Post process for segmentation")
+    parser.add_argument("--ALL", dest="ALL",
+                             required=False, action='store_true',
+                             help="Do every process in a row")
     parser.add_argument("--cfg", dest="path_cfg", type=str, default=False,
                              required=False, metavar="CFG", 
                              help="configuration file")
@@ -60,33 +63,38 @@ def get_args():
 
 if __name__=='__main__':
     args = get_args()
+    if args.ALL:
+        args.make_er = True
+        args.repair_er = True
+        args.seg_lvset = True
+        args.post_seg = True
+
+    # imgs = args.imgs if args.imgs else [1, 2, 3, 4, 5, 8, 9, 10, 11, 12]
     imgs = args.imgs if args.imgs else [0]
 
     today = time.strftime("%y%m%d", time.localtime(time.time()))
-    
-    dir_er = 'data/netTC_210617/'
+    today = 210630
     dir_result = join('results', f'er_net/{today}/')
-
     makeDir(dir_result)
-    makeDir(dir_er)
 
     for ni in imgs:
         dir_resimg = join(dir_result, f'{ni:05d}/')
         makeDir(dir_resimg)
+
+        path_img = join(dir_resimg, f'{ni:05d}.pth')
         
         # Inference edge regions with a learned deep neural net
         if args.make_er:
-            path_er = join(dir_er, f'T{ni:05d}.pck')
             edrg = EdgeRegion(args, ni)
             _img, _er = edrg.getEr()
 
-            saveFile({'input': _img, 'output': _er}, path_er)
-            print(f"Edge region: {path_er} is saved!!")
-            continue
+            _dt = {'img': _img, 'output': _er}
+            saveFile(_dt, path_img)
+            print(f"Edge region: {path_img} is saved!!")
 
-        _dt = loadFile(join(dir_er, f'T{ni:05d}.pck'))
         if args.repair_er:
-            img = _dt['input']
+            _dt = loadFile(path_img)
+            img = _dt['img']
             output = _dt['output']
 
             plt.figure()
@@ -96,7 +104,9 @@ if __name__=='__main__':
             plt.imshow(output, 'gray')
             plt.savefig(f'{dir_resimg}er0.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
 
-            er0 = np.where(output > .3, 1., 0.)
+            er0 = np.where(output > .5, 1., 0.)
+            _dt['er'] = er0
+
             CD = CurveProlong(er0, img, dir_resimg)
             num_dil = 2
 
@@ -116,16 +126,20 @@ if __name__=='__main__':
                 ax.imshow(CD.new_er, alpha=.2)
                 ax.set_title(f'step {i + 1}')
                 plt.pause(.1)
-
                 plt.savefig(f'{dir_resimg}prolong_step{i + 1}.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
 
                 CD.reSet()
-            continue
+
+            _dt['repaired_sk'] = CD.sk
+            saveFile(_dt, path_img)
 
         if args.seg_lvset:
-            er = cv2.dilate(CD.sk.astype(float), np.ones((3, 3)), -1, iterations=1)
-            bln = Balloon(er, wid=5, radii='auto', dt=0.05)
+            _dt = loadFile(path_img)
+            seg_er = cv2.dilate(_dt['repaired_sk'].astype(float), np.ones((3, 3)), -1, iterations=1)
+            bln = Balloon(seg_er, wid=5, radii='auto', dt=0.05)
             phis = bln.phis0
+
+            _dt.update({'seg_er': seg_er, 'phi0': phis})
 
             fig, ax = bln.setFigure(phis)
             mng = plt.get_current_fig_manager()
@@ -133,9 +147,9 @@ if __name__=='__main__':
             
             tol = 0.01
             _k = 0
-            max_iter = 300
+            max_iter = 200
             while True:
-                _vis = _k % 5 == 0
+                _vis = _k % 20 == 0
                 _save = _k % 3 == 3
                 _k += 1
                 _reinit = _k % 10 == 0
@@ -146,20 +160,20 @@ if __name__=='__main__':
                 if _save or _vis:
                     bln.drawContours(_k, phis, ax)
                     if _save: plt.savefig(join(dir_resimg, f"test{_k:05d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-                    if _vis: plt.pause(.1)
+                    if _vis: plt.pause(.01)
                 
                 err = np.abs(new_phis - phis).sum() / np.ones_like(phis).sum()
                 if (err < tol) or _k > max_iter:
-                    saveFile({'img': img, 'er': er, 'phis': new_phis}, join(dir_resimg, f"dict.pck"))
+                    _dt['phi'] = new_phis
+                    saveFile(_dt, path_img)
                     break
 
                 if _reinit:
                     new_phis = np.where(new_phis < 0, -1., 1.)
                     new_phis = bln.reinit.getSDF(new_phis)
                 phis = new_phis
-            continue
 
         if args.post_seg:
-            postProc = PostProc(dir_resimg)
-            continue
+            _dt = loadFile(path_img)
+            postProc = PostProc(_dt, dir_resimg)
 
