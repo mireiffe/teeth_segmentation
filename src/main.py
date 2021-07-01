@@ -71,7 +71,7 @@ if __name__=='__main__':
 
     imgs = args.imgs if args.imgs else [0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12]
     imgs = args.imgs if args.imgs else [11, 12]
-    # imgs = args.imgs if args.imgs else [0]
+    imgs = args.imgs if args.imgs else [0]
 
     today = time.strftime("%y%m%d", time.localtime(time.time()))
     # label_test = 'ResNest200_deep'
