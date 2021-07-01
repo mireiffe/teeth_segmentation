@@ -69,50 +69,28 @@ class PostProc():
 
     def regClass(self, lbl):
         num_reg = lbl.max()
-        Rein = Reinitial(dt=.3, width=5, tol=.05, iter=None, dim=2)
-
         kmeans = KMeans(n_clusters=2, random_state=0).fit(self.img.reshape((-1, 3)))
+        kmlbl = kmeans.labels_.reshape((self.m, self.n))
+
+        km0 = ((1 - kmlbl) * self.img.mean(axis=2)).sum()
+        km1 = (kmlbl * self.img.mean(axis=2)).sum()
+
+        mustBT = 0 if km0 > km1 else 1
 
         indic = []
         for ir in range(num_reg):
-            _reg = np.where(lbl == (ir+1), -1., 1.)
-            _phi = Rein.getSDF(_reg)
-            # _phi = skfmm.distance(_reg)
-            _kapp = self.kappa(_phi, mode=0)[0]
-            _kapp = self.gaussfilt(_kapp, sig=2)
-
-            # plt.figure()
-            # plt.imshow(_kapp)
-            # plt.imshow(np.where(_kapp > 0, 1., -1.), cmap='jet', alpha=.5)
-            # plt.show()
-
-            # plt.figure()
-            # plt.hist(_kapp.flatten(), bins=256, range=(_kapp.min(), _kapp.max()), log=True, histtype='step')
-            # plt.show()
-
-            cal_reg = np.abs(_phi) < 3
-            # cal_reg = 1
-            kapp_p = np.where((_kapp > 0), 1., 0) * cal_reg
-            kapp_n = (1 - kapp_p) * cal_reg
-            # sz_pos = kapp_p.sum()
-            # sz_neg = (1 - kapp_p).sum()
-            # sz_pos = _kapp.sum()
-            # sz_neg = (1 - kapp_p).sum()
-
-            # indic.append(np.sum(_kapp * (np.abs(_phi) < 5)))
-            # indic.append(np.sum(_kapp))
-
-            indic.append((kapp_p.sum() - kapp_n.sum()))
+            _reg = np.where(lbl == (ir+1), 1., 0.)
+            _indic = _reg * kmlbl if mustBT else _reg * (1 - kmlbl)
+            indic.append(_indic.sum() / _reg.sum())
 
         temp = lbl
+        new_lbl = lbl
         for i, ind in enumerate(indic):
             temp = np.where(temp == (i+1), ind, temp)
-            if ind < 300:
-                lbl = np.where(lbl == (i+1), -1, lbl)
+            if ind < .25:
+                new_lbl = np.where(new_lbl == (i+1), -1, new_lbl)
 
-        plt.figure()
-        plt.imshow(temp)
-        plt.show()
+        return new_lbl
 
     def distSize(self):
         '''
