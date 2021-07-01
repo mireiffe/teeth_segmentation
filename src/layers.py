@@ -64,6 +64,27 @@ class DoubleConvSC(nn.Module):
         return self.relu(self.dbl_conv(x) + x), self.relu(self.dbl_conv(x))
 
 
+class DoubleConvNoSC(nn.Module):
+    '''
+    [conv2d => BN => ReLU => conv2D => BN => +x => ReLU]
+    '''
+    def __init__(self, in_ch, out_ch):
+        super().__init__()
+        self.dbl_conv = nn.Sequential(
+            nn.ReflectionPad2d(padding=1),
+            nn.Conv2d(in_ch, out_ch, kernel_size=3, padding=0, bias=False),
+            nn.BatchNorm2d(out_ch),
+            nn.ReLU(inplace=True),
+            nn.ReflectionPad2d(padding=1),
+            nn.Conv2d(out_ch, out_ch, kernel_size=3, padding=0, bias=False),
+            nn.BatchNorm2d(out_ch)
+        )
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, x):
+        return self.relu(self.dbl_conv(x) + x)
+
+
 class DownCV(nn.Module):
     def __init__(self, in_ch, out_ch):
         super(DownCV, self).__init__()
@@ -77,28 +98,6 @@ class DownCV(nn.Module):
         return self.down_conv(x)
 
 
-class UpLayTC(nn.Module):
-    '''
-    Upscaling | Short connection => conv2d * 2
-    '''
-    def __init__(self, in_ch, out_ch, scalefactor=2):
-        super().__init__()
-        self.up = nn.Sequential(
-            nn.ConvTranspose2d(in_ch, in_ch, kernel_size=2, stride=2, bias=False),
-            nn.BatchNorm2d(in_ch),
-            nn.ReLU(inplace=True)
-        )
-        self.conv = nn.Sequential(
-            Conv2d(in_ch, out_ch, 5, padding=2, bias=False),
-            nn.BatchNorm2d(out_ch),
-            nn.ReLU(inplace=True)
-        )
-
-    def forward(self, x):
-        x = self.up(x)
-        return self.conv(x)
-
-
 class DownDCSC(nn.Module):
     '''
     2x2 Conv with stride 2 => DoubleConvSC
@@ -108,6 +107,21 @@ class DownDCSC(nn.Module):
         self.mp_dcsc = nn.Sequential(
             DownCV(in_ch, out_ch),
             DoubleConvSC(out_ch, out_ch)
+        )
+
+    def forward(self, x):
+        return self.mp_dcsc(x)
+
+
+class DownDCNoSC(nn.Module):
+    '''
+    2x2 Conv with stride 2 => DoubleConvSC
+    '''
+    def __init__(self, in_ch, out_ch):
+        super().__init__()
+        self.mp_dcsc = nn.Sequential(
+            DownCV(in_ch, out_ch),
+            DoubleConvNoSC(out_ch, out_ch)
         )
 
     def forward(self, x):
@@ -129,6 +143,23 @@ class TransConvDC(nn.Module):
     def forward(self, x_skip, x):
         x = torch.cat((x_skip, self.trans_conv(x)), dim=1)
         return self.dconv(x)
+
+
+class TransConvDCNoSC(nn.Module):
+    '''
+    Transpose conv => DoubleConv
+    '''
+    def __init__(self, in_ch, out_ch):
+        super().__init__()
+        self.trans_conv = nn.Sequential(
+            nn.ConvTranspose2d(in_ch, out_ch, kernel_size=2, stride=2, bias=False),
+            nn.BatchNorm2d(out_ch),
+            nn.ReLU(inplace=True)
+        )
+        self.dconv = DoubleConv(out_ch, out_ch)
+
+    def forward(self, x):
+        return self.dconv(self.trans_conv(x))
 
 
 class TransConvResDC(nn.Module):
@@ -193,6 +224,32 @@ class InLayer(nn.Module):
         return self.relu(self.dbl_conv(x) + self.oxo_conv(x)), self.relu(self.dbl_conv(x))
 
 
+class InLayerNoSC(nn.Module):
+    '''
+    Conv => BN => ReLU =>
+    Conv => BN => + conv(x, 1x1) => ReLU
+    '''
+    def __init__(self, in_ch, out_ch):
+        super().__init__()
+        self.dbl_conv = nn.Sequential(
+            nn.ReflectionPad2d(padding=1),
+            nn.Conv2d(in_ch, out_ch, kernel_size=3, padding=0, bias=False),
+            nn.BatchNorm2d(out_ch),
+            nn.ReLU(inplace=True),
+            nn.ReflectionPad2d(padding=1),
+            nn.Conv2d(out_ch, out_ch, kernel_size=3, padding=0, bias=False),
+            nn.BatchNorm2d(out_ch)
+        )
+        self.oxo_conv = nn.Sequential(
+            nn.Conv2d(in_ch, out_ch, kernel_size=1, padding=0),
+            nn.BatchNorm2d(out_ch)
+        )
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, x):
+        return self.relu(self.dbl_conv(x) + self.oxo_conv(x))
+
+
 class ConvReLU(nn.Module):
     '''
     ReflectPadding => Conv => BN => ReLU
@@ -215,17 +272,59 @@ class OutLayer(nn.Module):
     '''
     conv => BN => (activative function)
     '''
-    def __init__(self, in_ch, out_ch, act_fun):
+    def __init__(self, in_ch, out_ch, act_fun, ksz=1):
         super(OutLayer, self).__init__()
         afun = eval(f'nn.{act_fun}()')
         self.out_lay = nn.Sequential(
-            nn.Conv2d(in_ch, out_ch, kernel_size=1, padding=0, bias=False),
+            nn.Conv2d(in_ch, out_ch, kernel_size=ksz, padding=ksz//2, bias=False),
             nn.BatchNorm2d(out_ch),
             afun
         )
 
     def forward(self, x):
         return self.out_lay(x)
+
+
+class UpLay(nn.Module):
+    '''
+    Upscaling | Short connection => conv2d * 2
+    '''
+    def __init__(self, in_ch, out_ch, scalefactor=2):
+        super().__init__()
+        self.up = nn.Sequential(
+            nn.UpsamplingBilinear2d(scale_factor=scalefactor)
+        )
+        self.conv = nn.Sequential(
+            Conv2d(in_ch, out_ch, 5, padding=2, bias=False),
+            nn.BatchNorm2d(out_ch),
+            nn.ReLU(inplace=True)
+        )
+
+    def forward(self, x):
+        x = self.up(x)
+        return self.conv(x)
+
+
+class UpLayTC(nn.Module):
+    '''
+    Upscaling | Short connection => conv2d * 2
+    '''
+    def __init__(self, in_ch, out_ch, scalefactor=2):
+        super().__init__()
+        self.up = nn.Sequential(
+            nn.ConvTranspose2d(in_ch, in_ch, kernel_size=2, stride=2, bias=False),
+            nn.BatchNorm2d(in_ch),
+            nn.ReLU(inplace=True)
+        )
+        self.conv = nn.Sequential(
+            Conv2d(in_ch, out_ch, 5, padding=2, bias=False),
+            nn.BatchNorm2d(out_ch),
+            nn.ReLU(inplace=True)
+        )
+
+    def forward(self, x):
+        x = self.up(x)
+        return self.conv(x)
 
 
 class UpLaySC(nn.Module):
@@ -243,7 +342,7 @@ class UpLaySC(nn.Module):
             nn.ReLU(inplace=True)
         )
 
-    def forward(self, x):
-        # x = x_skip + self.up(x)
+    def forward(self, x, x_skip):
         x = self.up(x)
+        x = torch.cat((x_skip, x), 1)
         return self.conv(x)

@@ -4,16 +4,19 @@ from configparser import ConfigParser, ExtendedInterpolation
 
 import torch
 
-from _networks.dataset import ErDataset
+from dataset import ErDataset
 from torch.utils.data import DataLoader
+from torchvision.transforms import functional as TF
+from torchvision.transforms.functional import InterpolationMode
+
 import matplotlib.pyplot as plt
 
 # custom libs
-from _networks import model
+import model
 
 
 class EdgeRegion():
-    def __init__(self, args, num_img):
+    def __init__(self, args, num_img, scaling=False):
         self.num_img = num_img
 
         self.config = ConfigParser(allow_no_value=True, interpolation=ExtendedInterpolation())
@@ -30,6 +33,7 @@ class EdgeRegion():
         self.ids = cfg_train["device_ids"]
         self.lst_ids = [int(id) for id in self.ids]
         self.dvc_main = torch.device(f"{self.dvc}:{self.ids[0]}")
+        self. scaling = scaling
 
     def getEr(self):
         net = self.setModel()
@@ -86,6 +90,11 @@ class EdgeRegion():
 
         for k, btchs in enumerate(loader_test):
             imgs = btchs[0].to(device=self.dvc_main, dtype=dtype)
+
+            # image scaling
+            if (imgs.nelement() / imgs.shape[1] > 1200**2) and self.scaling:
+                imgs = TF.resize(imgs, 600, interpolation=InterpolationMode.NEAREST)
+
             preds = net(imgs)
 
             om, on = data_test.m, data_test.n

@@ -32,7 +32,8 @@ class CurveProlong():
         plt.imshow(self.sk, 'gray', alpha=.5)
         plt.savefig(f'{self.dir_save}skel0.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
 
-        self.dilation(wid_er=self.measureWidth())
+        self.wid_er = self.measureWidth()
+        self.dilation(wid_er=self.wid_er)
         plt.figure()
         plt.imshow(self.er, 'gray')
         plt.savefig(f'{self.dir_save}er_mid.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
@@ -50,9 +51,10 @@ class CurveProlong():
         self.skeletonize()
         self.endPoints()
 
-    def reSet(self):
-        self.sk = skeletonize(self.sk)
+    def reSet(self, k):
         self.endPoints()
+        self.dilation(wid_er=self.wid_er, k=k)
+        # self.sk = skeletonize(self.er)
         self.findCurves()
 
     def measureWidth(self):
@@ -81,7 +83,7 @@ class CurveProlong():
         wid = Z_45 * sig / np.sqrt(tot_len // 10) + mu
         return wid
 
-    def dilation(self, wid_er):
+    def dilation(self, wid_er, k=0):
         self.dil_ends = np.zeros_like(self.er)
         for idx in self.ind_end:
             self.dil_ends[idx[0]] = 1
@@ -100,9 +102,10 @@ class CurveProlong():
         plt.imshow(self.er, 'gray')
         plt.imshow(self.sk, alpha=.5)
         plt.imshow(self.dil_ends, 'Reds', alpha=.5)
-        plt.savefig(f'{self.dir_save}ends.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+        plt.savefig(f'{self.dir_save}ends{k}.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
 
         self.er = np.where(self.dil_ends + self.er > .5, 1., 0.)
+        self.sk = skeletonize(self.er)
 
     def removeHoles(self, param_sz=1000):
         lbl = label(self.er, background=1, connectivity=1)

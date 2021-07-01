@@ -12,13 +12,14 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "args": [
-                "--post_seg",
-                // "--seg_lvset",
+                "--ALL",
+                // "--post_seg",
                 // "--repair_er",
+                // "--seg_lvset",
                 // "--make_er",
                 // "--img", "-3",
                 // "--device", "cuda", "0",
-                // "--cfg", "cfg/inference.ini"
+                "--cfg", "cfg/inference.ini"
             ]
         }
     ]

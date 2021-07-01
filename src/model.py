@@ -5,9 +5,9 @@ from torch import nn, hub
 from torch.nn import functional as F
 from torchvision import models
 
-from _networks import layers
+import layers
 
-from _networks import resnest
+import resnest
 
 
 class ForTest(nn.Module):

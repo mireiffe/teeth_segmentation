@@ -69,12 +69,17 @@ if __name__=='__main__':
         args.seg_lvset = True
         args.post_seg = True
 
-    # imgs = args.imgs if args.imgs else [1, 2, 3, 4, 5, 8, 9, 10, 11, 12]
-    imgs = args.imgs if args.imgs else [0]
+    imgs = args.imgs if args.imgs else [0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12]
+    imgs = args.imgs if args.imgs else [11, 12]
+    # imgs = args.imgs if args.imgs else [0]
 
     today = time.strftime("%y%m%d", time.localtime(time.time()))
-    today = 210630
-    dir_result = join('results', f'er_net/{today}/')
+    # label_test = 'ResNest200_deep'
+    label_test = None
+    if label_test == None:
+        dir_result = join('results', f'er_net/{today}/')
+    else:
+        dir_result = join('results', f'er_net/{today}_{label_test}/')
     makeDir(dir_result)
 
     for ni in imgs:
@@ -85,7 +90,7 @@ if __name__=='__main__':
         
         # Inference edge regions with a learned deep neural net
         if args.make_er:
-            edrg = EdgeRegion(args, ni)
+            edrg = EdgeRegion(args, ni, scaling=False)
             _img, _er = edrg.getEr()
 
             _dt = {'img': _img, 'output': _er}
@@ -108,7 +113,7 @@ if __name__=='__main__':
             _dt['er'] = er0
 
             CD = CurveProlong(er0, img, dir_resimg)
-            num_dil = 2
+            num_dil = 4
 
             fig = plt.figure()
             ax = fig.add_subplot(111)
@@ -128,10 +133,11 @@ if __name__=='__main__':
                 plt.pause(.1)
                 plt.savefig(f'{dir_resimg}prolong_step{i + 1}.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
 
-                CD.reSet()
+                CD.reSet(k=i)
 
             _dt['repaired_sk'] = CD.sk
             saveFile(_dt, path_img)
+            plt.close('all')
 
         if args.seg_lvset:
             _dt = loadFile(path_img)
@@ -159,8 +165,9 @@ if __name__=='__main__':
 
                 if _save or _vis:
                     bln.drawContours(_k, phis, ax)
-                    if _save: plt.savefig(join(dir_resimg, f"test{_k:05d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-                    if _vis: plt.pause(.01)
+                    if _k == 1: plt.savefig(join(dir_resimg, f"test{_k:05d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+                    elif _save: plt.savefig(join(dir_resimg, f"test{_k:05d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+                    if _vis: plt.pause(.1)
                 
                 err = np.abs(new_phis - phis).sum() / np.ones_like(phis).sum()
                 if (err < tol) or _k > max_iter:
@@ -172,6 +179,7 @@ if __name__=='__main__':
                     new_phis = np.where(new_phis < 0, -1., 1.)
                     new_phis = bln.reinit.getSDF(new_phis)
                 phis = new_phis
+            plt.close('all')
 
         if args.post_seg:
             _dt = loadFile(path_img)

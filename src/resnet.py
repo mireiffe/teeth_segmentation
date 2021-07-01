@@ -10,7 +10,7 @@ import math
 import torch
 import torch.nn as nn
 
-from _networks.splat import SplAtConv2d
+from splat import SplAtConv2d
 
 __all__ = ['ResNet', 'Bottleneck']
 
@@ -287,7 +287,7 @@ class ResNet(nn.Module):
         x = self.maxpool(x)
         
         x = self.layer1(x)
-        x = self.layer2(x)
+        x= self.layer2(x)
         x = self.layer3(x)
         x = self.layer4(x)
 
@@ -299,3 +299,4 @@ class ResNet(nn.Module):
         # x = self.fc(x)
 
         return x
+

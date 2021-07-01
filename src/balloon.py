@@ -28,7 +28,7 @@ class Balloon():
 
         # get initial SDF
         inits = self.getInitials()
-        self.reinit = Reinitial(dt=.1, width=None, tol=.01, iter=None, dim=2)
+        self.reinit = Reinitial(dt=.1, width=None, tol=.01, iter=None, dim=2, fmm=True)
         self.phis0 = self.reinit.getSDF(inits)
 
         self.psi = self.reinit.getSDF(np.where(self.er > .5, -1., 1.))
