@@ -68,14 +68,14 @@ class PostProc():
         return lbl + _lbl
 
     def regClass(self, lbl):
-        num_reg = lbl.max()
-        kmeans = KMeans(n_clusters=2, random_state=0).fit(self.img.reshape((-1, 3)))
-        kmlbl = kmeans.labels_.reshape((self.m, self.n))
+        #num_reg = lbl.max()
+        #kmeans = KMeans(n_clusters=2, random_state=0).fit(self.img.reshape((-1, 3)))
+        #kmlbl = kmeans.labels_.reshape((self.m, self.n))
 
-        km0 = ((1 - kmlbl) * self.img.mean(axis=2)).sum()
-        km1 = (kmlbl * self.img.mean(axis=2)).sum()
+        km0 = ((kmlbl == 0) * self.img.mean(axis=2)).sum()
+        km1 = ((kmlbl == 1) * self.img.mean(axis=2)).sum()
 
-        mustBT = 0 if km0 > km1 else 1
+        mustBT = np.argmax([km0, km1])
 
         indic = []
         for ir in range(num_reg):
@@ -87,10 +87,15 @@ class PostProc():
         new_lbl = lbl
         for i, ind in enumerate(indic):
             temp = np.where(temp == (i+1), ind, temp)
-            if ind < .25:
+            if ind < .20:
                 new_lbl = np.where(new_lbl == (i+1), -1, new_lbl)
 
-        return new_lbl
+        plt.figure()
+        plt.imshow(temp)
+        plt.savefig(f'{self.dir_img}debug_post.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+        # plt.show()
+
+        return lbl
 
     def distSize(self):
         '''
@@ -104,8 +109,6 @@ class PostProc():
         self.sig_sz = np.sqrt(mu_sz_2 - self.mu_sz ** 2)
 
     def _saveSteps(self):
-        res = self.lbl2
-        
         plt.figure()
         plt.imshow(self.lbl0)
         plt.savefig(f'{self.dir_img}lbl0.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
@@ -121,28 +124,25 @@ class PostProc():
         plt.figure()
         plt.imshow(self.img)
         clrs = ['r', 'g', 'b', 'c', 'm', 'y', 'k'] * 10
-        for i in range(np.max(res)):
-            plt.contour(np.where(res == i, -1., 1.), levels=[0], colors=clrs[i])
+        for i in range(np.max(self.res)):
+            plt.contour(np.where(self.res == i+1, -1., 1.), levels=[0], colors=clrs[i])
         plt.savefig(f'{self.dir_img}res.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
 
         plt.close('all')
         plt.figure()
         plt.subplot(2, 2, 1)
         plt.imshow(self.lbl0)
-        plt.figure()
         plt.subplot(2, 2, 2)
         plt.imshow(self.tot_lbl)
-        plt.figure()
         plt.subplot(2, 2, 3)
         plt.imshow(self.res)
-        plt.figure()
         plt.subplot(2, 2, 4)
         plt.imshow(self.img)
         clrs = ['r', 'g', 'b', 'c', 'm', 'y', 'k'] * 10
-        for i in range(np.max(res)):
-            plt.contour(np.where(res == i, -1., 1.), levels=[0], colors=clrs[i])
-        plt.savefig(f'{self.dir_img}res.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-        plt.show()
+        for i in range(np.max(self.res)):
+            plt.contour(np.where(self.res == i+1, -1., 1.), levels=[0], colors=clrs[i])
+        plt.savefig(f'{self.dir_img}res_tot.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+        # plt.pause(10)
 
     def kappa(self, phis, ksz=1, h=1, mode=0):
         x, y = self.imgrad(phis)
