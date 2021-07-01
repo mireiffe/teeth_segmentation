@@ -106,10 +106,6 @@ class PostProc():
     def _saveSteps(self):
         res = self.lbl2
         
-        cv2.imwrite(f'{self.dir_img}lbl1.png', self.lbl0 / self.lbl0.max() * 255, params=[cv2.IMWRITE_PNG_COMPRESSION,0])
-        cv2.imwrite(f'{self.dir_img}lbl2.png', self.lbl / self.lbl.max() * 255, params=[cv2.IMWRITE_PNG_COMPRESSION,0])
-        cv2.imwrite(f'{self.dir_img}lbl3.png', self.lbl2 / self.lbl2.max() * 255, params=[cv2.IMWRITE_PNG_COMPRESSION,0])
-
         plt.figure()
         plt.imshow(self.lbl0)
         plt.savefig(f'{self.dir_img}lbl0.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
@@ -117,8 +113,11 @@ class PostProc():
         plt.imshow(self.lbl)
         plt.savefig(f'{self.dir_img}lbl1.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
         plt.figure()
-        plt.imshow(self.lbl2)
+        plt.imshow(self.tot_lbl)
         plt.savefig(f'{self.dir_img}lbl2.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+        plt.figure()
+        plt.imshow(self.res)
+        plt.savefig(f'{self.dir_img}lbl3.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
         plt.figure()
         plt.imshow(self.img)
         clrs = ['r', 'g', 'b', 'c', 'm', 'y', 'k'] * 10
@@ -128,18 +127,21 @@ class PostProc():
 
         plt.close('all')
         plt.figure()
-        plt.subplot(2,2,1)
-        plt.imshow(self.lbl)
-        plt.subplot(2,2,2)
-        plt.imshow(self.lbl2)
-        plt.subplot(2,2,3)
-        plt.imshow(res)
-        plt.subplot(2,2,4)
+        plt.subplot(2, 2, 1)
+        plt.imshow(self.lbl0)
+        plt.figure()
+        plt.subplot(2, 2, 2)
+        plt.imshow(self.tot_lbl)
+        plt.figure()
+        plt.subplot(2, 2, 3)
+        plt.imshow(self.res)
+        plt.figure()
+        plt.subplot(2, 2, 4)
         plt.imshow(self.img)
         clrs = ['r', 'g', 'b', 'c', 'm', 'y', 'k'] * 10
         for i in range(np.max(res)):
-            plt.contour(np.where(res == (i + 1), -1., 1.), levels=[0], colors=clrs[i])
-        plt.savefig(f'{self.dir_img}lbl3_all.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+            plt.contour(np.where(res == i, -1., 1.), levels=[0], colors=clrs[i])
+        plt.savefig(f'{self.dir_img}res.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
         plt.show()
 
     def kappa(self, phis, ksz=1, h=1, mode=0):
