@@ -56,7 +56,7 @@ def get_args():
     parser.add_argument("--ALL", dest="ALL",
                              required=False, action='store_true',
                              help="Do every process in a row")
-    parser.add_argument("--cfg", dest="path_cfg", type=str, default=False,
+    parser.add_argument("--cfg", dest="path_cfg", type=str, default='cfg/inference.ini',
                              required=False, metavar="CFG", 
                              help="configuration file")
     return parser.parse_args()

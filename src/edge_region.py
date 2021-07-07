@@ -15,6 +15,9 @@ import matplotlib.pyplot as plt
 import model
 
 
+dir_network = '/home/users/mireiffe/Documents/Python/ERLearning/results/'
+
+
 class EdgeRegion():
     def __init__(self, args, num_img, scaling=False):
         self.num_img = num_img
@@ -24,6 +27,10 @@ class EdgeRegion():
         self.config.read(args.path_cfg)
 
         self.config['DEFAULT']['HOME'] = abspath(join(dirname(abspath(__file__)), *[os.pardir]))
+
+        # load configure file
+        dir_ld = f"{dir_network}{self.config['DEFAULT']['dir_stdict']}"
+        self.config.read(os.path.join(dir_ld, 'info_train.ini'))
         
         if args.device: self.config['TRAIN'].update({'decvice': args.device[0], 'device_ids': args.device[1]})
 
@@ -33,7 +40,7 @@ class EdgeRegion():
         self.ids = cfg_train["device_ids"]
         self.lst_ids = [int(id) for id in self.ids]
         self.dvc_main = torch.device(f"{self.dvc}:{self.ids[0]}")
-        self. scaling = scaling
+        self.scaling = scaling
 
     def getEr(self):
         net = self.setModel()
@@ -65,7 +72,7 @@ class EdgeRegion():
             print(f"Using main device <{self.dvc_main}>")
 
         # Load parameters
-        file_ld = os.path.join(cfg_dft['dir_stdict'], f"checkpoints/{cfg_dft['num_cp']}.pth")
+        file_ld = os.path.join(dir_network, *[cfg_dft['dir_stdict'], f"checkpoints/{cfg_dft['num_cp']}.pth"])
         checkpoint = torch.load(file_ld, map_location='cpu')
         try:
             net.load_state_dict(checkpoint['net_state_dict'])
@@ -80,10 +87,9 @@ class EdgeRegion():
         cfg_dt = self.config['DATASET']
 
         if cfg_dt['name'] in {'er_labeled', 'er_less', 'er_reset', 'er_reset_lvset'}:
-            data_test = ErDataset(cfg_dt['path'], split=self.num_img, wid_dil='auto', mode='test')
+            data_test = ErDataset(None, cfg_dt['path'], split=[[self.num_img, self.num_img+1]], wid_dil='auto', mode='test')
         else:
             raise NotImplementedError('There are no such dataset')
-        n_test = len(data_test)
         loader_test = DataLoader(
             data_test, batch_size=1, shuffle=False,
             num_workers=0, pin_memory=False)
