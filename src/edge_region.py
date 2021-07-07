@@ -80,7 +80,7 @@ class EdgeRegion():
         cfg_dt = self.config['DATASET']
 
         if cfg_dt['name'] in {'er_labeled', 'er_less', 'er_reset', 'er_reset_lvset'}:
-            data_test = ErDataset(cfg_dt['path'], split=self.num_img, wid_dil='auto')
+            data_test = ErDataset(cfg_dt['path'], split=self.num_img, wid_dil='auto', mode='test')
         else:
             raise NotImplementedError('There are no such dataset')
         n_test = len(data_test)
