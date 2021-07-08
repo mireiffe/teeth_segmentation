@@ -15,9 +15,7 @@ from reinitial import Reinitial
 
 
 class CurveProlong():
-    gap = 3
     num_pts = 10
-    maxlen_cv = gap * (num_pts - 1) + num_pts
 
     def __init__(self, er, img, dir_save):
         self.er0 = er
@@ -25,6 +23,9 @@ class CurveProlong():
         self.img = img
         self.dir_save = dir_save
         self.m, self.n = self.er.shape
+    
+        self.gap = int(np.round(self.m * self.n / 200 / 200))
+        self.maxlen_cv = self.gap * (self.num_pts - 1) + self.num_pts
 
         self.preSet()
         plt.figure()
@@ -52,9 +53,9 @@ class CurveProlong():
         self.endPoints()
 
     def reSet(self, k):
+        self.sk = skeletonize(self.sk)
         self.endPoints()
         # self.dilation(wid_er=self.wid_er, k=k)
-        self.sk = skeletonize(self.er)
         self.findCurves()
 
     def measureWidth(self):
@@ -177,7 +178,8 @@ class CurveProlong():
                     continue
 
                 b = np.array(list(zip(*idx[::self.gap + 1]))).T
-                abc = np.linalg.lstsq(D[:len(b), :], b, rcond=None)[0]
+                mDb = min(len(b), len(D))
+                abc = np.linalg.lstsq(D[:mDb, :], b[:mDb, :], rcond=None)[0]
                 abc[-1, :] = b[0]
 
                 yy = np.round(abc[0, 0] * pt * pt + abc[1, 0] * pt + abc[2, 0]).astype(int)
@@ -190,6 +192,9 @@ class CurveProlong():
                     continue
 
                 if yy >= self.m or xx >= self.n:
+                    banned[iii] = 1
+                    continue
+                if -yy >= self.m or -xx >= self.n:
                     banned[iii] = 1
                     continue
                 elif self.psi[_yy, _xx] > self.psi[yy, xx]:

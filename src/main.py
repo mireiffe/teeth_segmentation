@@ -7,6 +7,7 @@ import time
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+from skimage.measure import label
 
 # custom libs
 from edge_region import EdgeRegion
@@ -14,6 +15,8 @@ from balloon import Balloon
 from curve import CurveProlong
 from post import PostProc
 
+
+VISIBLE = False
 
 def saveFile(dict, fname):
     with open(fname, 'wb') as f:
@@ -69,9 +72,9 @@ if __name__=='__main__':
         args.seg_lvset = True
         args.post_seg = True
 
-    imgs = args.imgs if args.imgs else [0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20, 21]
-    # imgs = args.imgs if args.imgs else [11, 12]
-    # imgs = args.imgs if args.imgs else [0]
+    imgs = args.imgs if args.imgs else [0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 20, 21]
+    # imgs = args.imgs if args.imgs else [12, 13, 14, 16, 17, 18, 20, 21]
+    imgs = args.imgs if args.imgs else [10]
 
     today = time.strftime("%y%m%d", time.localtime(time.time()))
     # label_test = 'ResNest200_deep'
@@ -129,11 +132,12 @@ if __name__=='__main__':
                     ax.plot(_x, _y, 'r.-')
                 ax.imshow(CD.new_er, alpha=.2)
                 ax.set_title(f'step {i + 1}')
-                plt.pause(.1)
+                if VISIBLE: plt.pause(.1)
                 plt.savefig(f'{dir_resimg}prolong_step{i + 1}.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
 
                 CD.reSet(k=i)
 
+            CD.dilation(wid_er=CD.wid_er)
             _dt['repaired_sk'] = CD.sk
             saveFile(_dt, path_img)
             plt.close('all')
@@ -141,6 +145,9 @@ if __name__=='__main__':
         if args.seg_lvset:
             _dt = loadFile(path_img)
             seg_er = cv2.dilate(_dt['repaired_sk'].astype(float), np.ones((3, 3)), -1, iterations=1)
+            temp = np.ones_like(seg_er)
+            temp[3:-3, 3:-3] = seg_er[3:-3, 3:-3]
+            seg_er = temp
             bln = Balloon(seg_er, wid=5, radii='auto', dt=0.05)
             phis = bln.phis0
 
@@ -154,18 +161,20 @@ if __name__=='__main__':
             _k = 0
             max_iter = 500
             while True:
-                _vis = _k % 20 == 0
+                _vis = _k % 20 == 0 if VISIBLE else _k % 20 == -1
                 _save = _k % 3 == 3
                 _k += 1
                 _reinit = _k % 10 == 0
 
                 new_phis = bln.update(phis)
-                print(f"\riteration: {_k}", end='')
+                print(f"\rimage {ni}, iteration: {_k}", end='')
 
+                if _k == 1:
+                    bln.drawContours(_k, phis, ax)
+                    plt.savefig(join(dir_resimg, f"test{_k:05d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
                 if _save or _vis:
                     bln.drawContours(_k, phis, ax)
-                    if _k == 1: plt.savefig(join(dir_resimg, f"test{_k:05d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-                    elif _save: plt.savefig(join(dir_resimg, f"test{_k:05d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+                    _save: plt.savefig(join(dir_resimg, f"test{_k:05d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
                     if _vis: plt.pause(.1)
                 
                 err = np.abs(new_phis - phis).sum() / np.ones_like(phis).sum()
@@ -178,9 +187,15 @@ if __name__=='__main__':
                     new_phis = np.where(new_phis < 0, -1., 1.)
                     new_phis = bln.reinit.getSDF(new_phis)
                 phis = new_phis
+            seg_res = np.where(phis < 0, 1., 0.)
+            lbl = label(seg_res, background=0, connectivity=1)
+            plt.figure()
+            plt.imshow(lbl)
+            plt.savefig(f'{dir_resimg}lbl0.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
             plt.close('all')
 
         if args.post_seg:
             _dt = loadFile(path_img)
+            print(f'\rimage {ni}, post processing...')
             postProc = PostProc(_dt, dir_resimg)
 

@@ -38,7 +38,7 @@ class PostProc():
         '''
         seg_res = np.where(self.phi < 0, 1., 0.)
         lbl = label(seg_res, background=0, connectivity=1)
-        del_tol = self.m * self.n / 1000
+        del_tol = self.m * self.n / 750
         for lbl_i in range(1, np.max(lbl) + 1):
             idx_i = np.where(lbl == lbl_i)
             num_i = len(idx_i[0])
@@ -72,8 +72,8 @@ class PostProc():
         kmeans = KMeans(n_clusters=2, random_state=0).fit(self.img.reshape((-1, 3)))
         kmlbl = kmeans.labels_.reshape((self.m, self.n))
 
-        km0 = ((kmlbl == 0) * self.img.mean(axis=2)).sum()
-        km1 = ((kmlbl == 1) * self.img.mean(axis=2)).sum()
+        km0 = ((kmlbl == 0) * self.img.mean(axis=2)).sum() / (kmlbl == 0).sum()
+        km1 = ((kmlbl == 1) * self.img.mean(axis=2)).sum() / (kmlbl == 1).sum()
 
         mustBT = np.argmax([km0, km1])
 
