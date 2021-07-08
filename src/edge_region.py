@@ -84,12 +84,9 @@ class EdgeRegion():
         return net
 
     def inference(self, net, dtype=torch.float):
-        cfg_dt = self.config['DATASET']
+        dir_dt = '/home/users/mireiffe/Documents/Python/TeethSeg/data/testimgs/'
 
-        if cfg_dt['name'] in {'er_labeled', 'er_less', 'er_reset', 'er_reset_lvset'}:
-            data_test = ErDataset(None, cfg_dt['path'], split=[[self.num_img, self.num_img+1]], wid_dil='auto', mode='test')
-        else:
-            raise NotImplementedError('There are no such dataset')
+        data_test = ErDataset(None, dir_dt, split=[[self.num_img, self.num_img+1]], wid_dil='auto', mode='test')
         loader_test = DataLoader(
             data_test, batch_size=1, shuffle=False,
             num_workers=0, pin_memory=False)

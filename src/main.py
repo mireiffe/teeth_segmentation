@@ -69,9 +69,9 @@ if __name__=='__main__':
         args.seg_lvset = True
         args.post_seg = True
 
-    imgs = args.imgs if args.imgs else [0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12]
-    imgs = args.imgs if args.imgs else [11, 12]
-    imgs = args.imgs if args.imgs else [0]
+    imgs = args.imgs if args.imgs else [0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20, 21]
+    # imgs = args.imgs if args.imgs else [11, 12]
+    # imgs = args.imgs if args.imgs else [0]
 
     today = time.strftime("%y%m%d", time.localtime(time.time()))
     # label_test = 'ResNest200_deep'
@@ -91,29 +91,28 @@ if __name__=='__main__':
         # Inference edge regions with a learned deep neural net
         if args.make_er:
             edrg = EdgeRegion(args, ni, scaling=False)
-            _img, _er = edrg.getEr()
+            _input, _output = edrg.getEr()
 
-            _dt = {'img': _img, 'output': _er}
+            _dt = {'img': _input, 'output': _output}
             saveFile(_dt, path_img)
             print(f"Edge region: {path_img} is saved!!")
+            plt.figure()
+            plt.imshow(_input)
+            plt.savefig(f'{dir_resimg}img.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+            plt.figure()
+            plt.imshow(_output, 'gray')
+            plt.savefig(f'{dir_resimg}er0.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
 
         if args.repair_er:
             _dt = loadFile(path_img)
             img = _dt['img']
             output = _dt['output']
 
-            plt.figure()
-            plt.imshow(img)
-            plt.savefig(f'{dir_resimg}img.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-            plt.figure()
-            plt.imshow(output, 'gray')
-            plt.savefig(f'{dir_resimg}er0.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-
             er0 = np.where(output > .5, 1., 0.)
             _dt['er'] = er0
 
             CD = CurveProlong(er0, img, dir_resimg)
-            num_dil = 4
+            num_dil = 2
 
             fig = plt.figure()
             ax = fig.add_subplot(111)
@@ -153,7 +152,7 @@ if __name__=='__main__':
             
             tol = 0.01
             _k = 0
-            max_iter = 200
+            max_iter = 500
             while True:
                 _vis = _k % 20 == 0
                 _save = _k % 3 == 3

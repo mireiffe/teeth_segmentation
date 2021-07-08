@@ -68,9 +68,9 @@ class PostProc():
         return lbl + _lbl
 
     def regClass(self, lbl):
-        #num_reg = lbl.max()
-        #kmeans = KMeans(n_clusters=2, random_state=0).fit(self.img.reshape((-1, 3)))
-        #kmlbl = kmeans.labels_.reshape((self.m, self.n))
+        num_reg = lbl.max()
+        kmeans = KMeans(n_clusters=2, random_state=0).fit(self.img.reshape((-1, 3)))
+        kmlbl = kmeans.labels_.reshape((self.m, self.n))
 
         km0 = ((kmlbl == 0) * self.img.mean(axis=2)).sum()
         km1 = ((kmlbl == 1) * self.img.mean(axis=2)).sum()
@@ -87,7 +87,7 @@ class PostProc():
         new_lbl = lbl
         for i, ind in enumerate(indic):
             temp = np.where(temp == (i+1), ind, temp)
-            if ind < .20:
+            if ind < .30:
                 new_lbl = np.where(new_lbl == (i+1), -1, new_lbl)
 
         plt.figure()
