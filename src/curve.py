@@ -52,9 +52,9 @@ class CurveProlong():
         self.endPoints()
 
     def reSet(self, k):
-        self.sk = skeletonize(self.sk)
         self.endPoints()
         # self.dilation(wid_er=self.wid_er, k=k)
+        self.sk = skeletonize(self.er)
         self.findCurves()
 
     def measureWidth(self):
