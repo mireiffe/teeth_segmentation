@@ -108,7 +108,7 @@ class CurveProlong():
         self.er = np.where(self.dil_ends + self.er > .5, 1., 0.)
         self.sk = skeletonize(self.er)
 
-    def removeHoles(self, param_sz=1000):
+    def removeHoles(self, param_sz=2000):
         lbl = label(self.er, background=1, connectivity=1)
         del_tol = self.m * self.n / param_sz
         for lbl_i in range(1, np.max(lbl) + 1):

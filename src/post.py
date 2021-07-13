@@ -69,33 +69,64 @@ class PostProc():
 
     def regClass(self, lbl):
         num_reg = lbl.max()
-        kmeans = KMeans(n_clusters=2, random_state=0).fit(self.img.reshape((-1, 3)))
-        kmlbl = kmeans.labels_.reshape((self.m, self.n))
 
-        km0 = ((kmlbl == 0) * self.img.mean(axis=2)).sum() / (kmlbl == 0).sum()
-        km1 = ((kmlbl == 1) * self.img.mean(axis=2)).sum() / (kmlbl == 1).sum()
-
-        mustBT = np.argmax([km0, km1])
-
-        indic = []
+        indic_kapp = {}
         for ir in range(num_reg):
-            _reg = np.where(lbl == (ir+1), 1., 0.)
-            _indic = _reg * kmlbl if mustBT else _reg * (1 - kmlbl)
-            indic.append(_indic.sum() / _reg.sum())
+            if (ir + 1) not in lbl:
+                continue
+            _reg = np.where(lbl == (ir+1), -1., 1.)
+            # _phi = Rein.getSDF(_reg)
+            _phi = skfmm.distance(_reg)
+            _kapp = self.kappa(_phi, mode=0)[0]
+            _kapp = self.gaussfilt(_kapp, sig=2)
+
+            cal_reg = np.abs(_phi) < 2
+            p_kapp = np.where(_kapp > 0, _kapp, 0)
+            n_kapp = np.where(_kapp < 0, _kapp, 0)
+
+            n_pkapp = ((_kapp > 0) * cal_reg).sum()
+            n_nkapp = ((_kapp < 0) * cal_reg).sum()
+
+            if n_pkapp < n_nkapp:
+                indic_kapp[ir + 1] = n_pkapp - n_nkapp
+
+            if ir+1 == 18:
+                ttt = 1
+
+        # for i, ind in indic_kapp.items():
+        #     new_lbl = np.where(new_lbl == i, -1, new_lbl)
+
+        # # second phase
+        # kmeans = KMeans(n_clusters=2, random_state=0).fit(self.img.reshape((-1, 3)))
+        # kmlbl = kmeans.labels_.reshape((self.m, self.n))
+
+        # km0 = ((kmlbl == 0) * self.img.mean(axis=2)).sum() / (kmlbl == 0).sum()
+        # km1 = ((kmlbl == 1) * self.img.mean(axis=2)).sum() / (kmlbl == 1).sum()
+
+        # mustBT = np.argmax([km0, km1])
+
+        # indic_kmeans = {}
+        # for ir in range(num_reg):
+        #     if (ir + 1) not in lbl:
+        #         continue
+        #     _reg = np.where(lbl == (ir+1), 1., 0.)
+        #     _indic = _reg * kmlbl if mustBT else _reg * (1 - kmlbl)
+        #     indic_kmeans[ir+1] = _indic.sum() / _reg.sum()
 
         temp = lbl
+        temp2 = lbl
         new_lbl = lbl
-        for i, ind in enumerate(indic):
-            temp = np.where(temp == (i+1), ind, temp)
-            if ind < .30:
-                new_lbl = np.where(new_lbl == (i+1), -1, new_lbl)
+        for i, ind in indic_kapp.items():
+            temp = np.where(temp == i, ind, temp)
+            temp2 = np.where(temp2 == i, indic_kapp[i], temp2)
+            new_lbl = np.where(new_lbl == i, -1, new_lbl)
 
         plt.figure()
         plt.imshow(temp)
         plt.savefig(f'{self.dir_img}debug_post.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
         # plt.show()
 
-        return lbl
+        return new_lbl
 
     def distSize(self):
         '''
