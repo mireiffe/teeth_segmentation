@@ -24,13 +24,92 @@ class PostProc():
         self.phi = dict['phi'][..., 0]
         self.m, self.n = self.er.shape
 
+        self.GADF = GADF(self.img)
+        self.Fa = self.GADF.Fa
+        self.er_Fa = self.GADF.Er
+
+        # FOR DEBUG =================
+        def _show():
+            X, Y = np.mgrid[0:self.m, 0:self.n]
+            plt.figure()
+            plt.imshow(self.img)
+            plt.imshow(self.lbl0, alpha=.3)
+            plt.quiver(Y, X, self.Fa[..., 0], self.Fa[..., 1], angles='xy', scale_units='xy', scale=1, color='blue')
+            plt.show()
+        # =============================
+
         self.lbl0 = self.labeling()
+
+
         self.soaking()
         self.lbl = self.labeling()
+        self.toGADF(self.lbl)
         self.tot_lbl = self.zeroReg(self.lbl)
         # self.distSize()
         self.res = self.regClass(self.tot_lbl)
         self._saveSteps()
+
+    def toGADF(self, lbl):
+        dt = 0.1
+        mu = 1
+        num_lbl = np.max(lbl)
+        X, Y = np.mgrid[0:self.m, 0:self.n]
+        self.lbl_fa = []
+        for lb in range(num_lbl):
+            if (lb not in lbl) or (lb == 0):
+                continue
+            _reg = np.where(lbl == (lb), -1., 1.)
+            _phi = _reg
+
+            Rein = Reinitial(dt=.1, width=5)
+            
+            infl_reg = np.where((lbl == 0) + (lbl == lb), 1., 0.)
+            # infl_reg = np.where((lbl == lb), 1., 0.)
+            _k = 0
+            _Fc = - 1 * (lbl == lb)
+
+            while True:
+                _k += 1
+                if _k % 1 == 0:
+                    # _phi = Rein.getSDF(_phi)
+                    pass
+                else:
+                    pass
+                _phi = skfmm.distance(_phi)
+                gx, gy = self.imgrad(_phi)
+                _Fa = - 5 * (gx * self.Fa[..., 0] + gy * self.Fa[..., 1]) * self.er_Fa
+                _Fb = - .1 * (1 - self.er_Fa)
+                # _Fb = 0
+                _F = (_Fa + _Fb + _Fc) * infl_reg + mu * self.kappa(_phi)[0]
+                _F = np.where(self.lbl0 == 0, self.gaussfilt(_F, sig=1), _F)
+                new_phi = _phi + dt * _F
+
+                err = np.abs(new_phi - _phi).sum() / np.abs(np.ones_like(new_phi)).sum()
+                if err < 1E-06 or _k > 30:
+                    self.lbl_fa.append(np.where(new_phi < 0, lb, 0))
+                    break
+            
+                # plt.figure(1)
+                # plt.cla()
+                # plt.imshow(self.img)
+                # plt.imshow(self.lbl0==0, alpha=.3)
+                # plt.contour(new_phi, levels=[0], colors='r')
+                # # plt.quiver(Y, X, self.Fa[..., 0], self.Fa[..., 1], angles='xy', scale_units='xy', scale=1, color='blue')
+                # # plt.show()
+                # plt.title(f'iter = {_k:d}')
+                # plt.pause(.1)
+
+                _phi = new_phi
+
+        xx = 1
+
+        plt.figure()
+        plt.figure()
+        plt.imshow(self.img)
+        plt.imshow(sum(self.lbl_fa),alpha=.3)
+        plt.contour(sum(self.lbl_fa), levels=np.arange(.5, 20.5), colors='r')
+        plt.show()
+            
 
     def labeling(self):
         '''
@@ -258,3 +337,161 @@ class PostProc():
         if ksz is None:
             ksz = ((2 * np.ceil(2 * sig) + 1).astype(int), (2 * np.ceil(2 * sig) + 1).astype(int))
         return cv2.GaussianBlur(img, ksz, sig, borderType=bordertype)
+
+
+class GADF():
+    eps = np.finfo(float).eps
+
+    def __init__(self, img, sig=2, epsilon=1):
+        self.img_orig = img
+        self.epsilon = epsilon
+        self.w, self.h = img.shape[:2]
+        img = self.gaussfilt(self.img_orig, sig=sig)
+        if len(img.shape) > 2:
+            self.c = img.shape[2]
+        else:
+            self.c = 1
+
+        self.Fa = self.gadf(img)
+        self.Er = self.edgeRegion()
+
+    def gadf(self, img) -> None:
+        if self.c == 1:
+            ngx, ngy = self.normalGrad(img)
+
+            Ip = self.directInterp(img, (ngx, ngy), self.epsilon)
+            In = self.directInterp(img, (ngx, ngy), -self.epsilon)
+
+            coeff = np.sign(Ip + In - 2 * img)
+            Fa = np.stack((coeff * ngx, coeff * ngy), axis=2)
+        elif self.c == 3:
+            h = 1E-02
+            E = self.structTensor(img)
+            Q = self.eigvecSort(E)
+            v = Q[..., 0]
+
+            num_part = 21
+            xp = np.linspace(0, self.epsilon, num_part)
+            xn = np.linspace(-self.epsilon, 0, num_part)
+            yp, yn = [], []
+            for p, n in zip(*[xp, xn]):
+                yp.append(self.dux(img, v, p, h))
+                yn.append(self.dux(img, v, n, h))
+            
+            lx = np.trapz(yp, dx=1 / 20, axis=0) - np.trapz(yn, dx=1 / 20, axis=0)
+
+            Fa = np.sign(lx)[..., None] * v
+        else:
+            raise NotImplemented('Number of image channels is not 1 or 3.')
+        return Fa
+
+    def normalGrad(self, img) -> np.ndarray:
+        gx, gy = self.imgrad(img)
+        ng = np.sqrt(gx ** 2 + gy ** 2)
+        return gx / (ng + self.eps), gy / (ng + self.eps)
+
+    def structTensor(self, img):
+        gx, gy = self.imgrad(img)
+        Ei = np.array([[gx * gx, gx * gy], [gy * gx, gy * gy]])
+        E = Ei.sum(axis=4).transpose((2, 3, 0, 1))
+        return E
+
+    def edgeRegion(self) -> None:
+        F_ = np.stack((self.directInterp(self.Fa[..., 0], (self.Fa[..., 0], self.Fa[..., 1])),
+            self.directInterp(self.Fa[..., 1], (self.Fa[..., 0], self.Fa[..., 1]))), axis=2)
+        indic = np.sum(self.Fa * F_, axis=2)
+        self.Er = np.where(indic < 0, 1, 0)
+        return self.Er
+
+    def dux(self, img, v, mag, h):
+        '''
+        input
+        -----
+        v: direction \n
+        s: maginitude which is coefficient of v \n
+        h: increment for finite differential \n
+        '''
+        _d = v.transpose((2, 0, 1))
+        up = np.array([self.directInterp(img[..., i], _d, mag + h) 
+            for i in range(self.c)])
+        un = np.array([self.directInterp(img[..., i], _d, mag - h) 
+            for i in range(self.c)])
+        res = np.sqrt(np.sum(((up - un) / (2 * h)) ** 2, axis=0))
+        return res
+
+    @staticmethod
+    def eigvecSort(E:np.ndarray) -> tuple:
+        v, Q = np.linalg.eig(E)
+        _idx = np.argsort(v, axis=-1)[..., ::-1]
+        Q_idx = np.stack((_idx, _idx), axis=2)
+        sorted_Q = np.take_along_axis(Q, Q_idx, axis=-1)
+        return sorted_Q
+
+    @staticmethod
+    def imgrad(img: np.ndarray, order=1, h=1) -> np.ndarray:
+        '''
+        central difference
+        '''
+        nd = img.ndim
+        if nd < 3:
+            img = np.expand_dims(img, axis=-1)
+        if order == 1:
+            _x_ = img[:, 2:, ...] - img[:, :-2, ...]
+            x_ = img[:, 1:2, ...] - img[:, :1, ...]
+            _x = img[:, -1:, ...] - img[:, -2:-1, ...]
+
+            _y_ = img[2:, :, ...] - img[:-2, :, ...]
+            y_ = img[1:2, :, ...] - img[:1, :, ...]
+            _y = img[-1:, :, ...] - img[-2:-1, :, ...]
+
+            gx = np.concatenate((x_, _x_, _x), axis=1)
+            gy = np.concatenate((y_, _y_, _y), axis=0)
+            if nd < 3:
+                gx = gx[..., 0]
+                gy = gy[..., 0]
+            return gx / (2 * h), gy / (2 * h)
+        elif order == 2:
+            _img = np.pad(img, ((1, 1), (1, 1), (0, 0)), mode='symmetric')
+
+            gxx = _img[1:-1, 2:, ...] + _img[1:-1, :-2, ...] - 2 * _img[1:-1, 1:-1, ...]
+            gyy = _img[2:, 1:-1, ...] + _img[:-2, 1:-1, ...] - 2 * _img[1:-1, 1:-1, ...]
+            gxy = _img[2:, 2:, ...] + _img[:-2, :-2, ...] - _img[2:, :-2, ...] - _img[:-2, 2:, ...]
+            if nd < 3:
+                gxx = gxx[..., 0]
+                gyy = gyy[..., 0]
+                gxy = gxy[..., 0]
+            return gxx / (h * h), gyy / (h * h), gxy / (4 * h * h)
+
+    @staticmethod
+    def gaussfilt(img, sig=2, ksz=None, bordertype=cv2.BORDER_REFLECT):
+        if ksz is None:
+            ksz = ((2 * np.ceil(2 * sig) + 1).astype(int), (2 * np.ceil(2 * sig) + 1).astype(int))
+        return cv2.GaussianBlur(img, ksz, sig, borderType=bordertype)
+
+    @staticmethod
+    def directInterp(img: np.ndarray, direct:tuple or list, mag=1) -> np.ndarray:
+        m, n = img.shape[:2]
+        y, x = np.indices((m, n))
+
+        x_ = x + mag * direct[0]
+        y_ = y + mag * direct[1]
+
+        x_ = np.where(x_ < 0, 0, x_)
+        x_ = np.where(x_ > n - 1, n - 1, x_)
+        y_ = np.where(y_ < 0, 0, y_)
+        y_ = np.where(y_ > m - 1, m - 1, y_)
+
+        x1 = np.floor(x_).astype(int)
+        x2 = np.ceil(x_).astype(int)
+        y1 = np.floor(y_).astype(int)
+        y2 = np.ceil(y_).astype(int)
+
+        I1 = img[y1, x1, ...]
+        I2 = img[y1, x2, ...]
+        I3 = img[y2, x2, ...]
+        I4 = img[y2, x1, ...]
+
+        I14 = (y_ - y1) * I4 + (y2 - y_) * I1
+        I23 = (y_ - y1) * I3 + (y2 - y_) * I2
+
+        return (x_ - x1) * I23 +(x2 - x_) * I14

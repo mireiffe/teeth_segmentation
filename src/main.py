@@ -145,13 +145,15 @@ if __name__=='__main__':
         if args.seg_lvset:
             _dt = loadFile(path_img)
             seg_er = cv2.dilate(_dt['repaired_sk'].astype(float), np.ones((3, 3)), -1, iterations=1)
-            temp = np.ones_like(seg_er)
-            temp[3:-3, 3:-3] = seg_er[3:-3, 3:-3]
-            seg_er = temp
+            edge_er = np.ones_like(seg_er)
+            edge_er[3:-3, 3:-3] = seg_er[3:-3, 3:-3]
+            temp = edge_er - seg_er
+            seg_er = edge_er
+
             bln = Balloon(seg_er, wid=5, radii='auto', dt=0.05)
             phis = bln.phis0
 
-            _dt.update({'seg_er': seg_er, 'phi0': phis})
+            _dt.update({'seg_er': seg_er - temp, 'phi0': phis})
 
             fig, ax = bln.setFigure(phis)
             mng = plt.get_current_fig_manager()
@@ -179,6 +181,7 @@ if __name__=='__main__':
                 
                 err = np.abs(new_phis - phis).sum() / np.ones_like(phis).sum()
                 if (err < tol) or _k > max_iter:
+                    new_phis[..., 0] = np.where(temp, -1., new_phis[..., 0])
                     _dt['phi'] = new_phis
                     saveFile(_dt, path_img)
                     break

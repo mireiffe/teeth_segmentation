@@ -12,8 +12,8 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "args": [
-                "--ALL",
-                // "--post_seg",
+                "--post_seg",
+                // "--ALL",
                 // "--make_er",
                 // "--repair_er",
                 // "--seg_lvset",
