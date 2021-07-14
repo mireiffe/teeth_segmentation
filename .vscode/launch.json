@@ -13,10 +13,10 @@
             "console": "integratedTerminal",
             "args": [
                 "--post_seg",
+                // "--ALL",
                 // "--make_er",
                 // "--repair_er",
                 // "--seg_lvset",
-                // "--ALL",
                 // "--img", "-3",
                 // "--device", "cuda", "0",
                 "--cfg", "cfg/inference.ini"

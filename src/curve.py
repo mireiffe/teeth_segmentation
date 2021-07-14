@@ -28,12 +28,12 @@ class CurveProlong():
         self.maxlen_cv = self.gap * (self.num_pts - 1) + self.num_pts
 
         self.preSet()
+        self.wid_er = self.measureWidth()
         plt.figure()
         plt.imshow(self.img)
         plt.imshow(self.sk, 'gray', alpha=.5)
         plt.savefig(f'{self.dir_save}skel0.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
 
-        self.wid_er = self.measureWidth()
         self.dilation(wid_er=self.wid_er)
         plt.figure()
         plt.imshow(self.er, 'gray')
@@ -210,7 +210,7 @@ class CurveProlong():
                 self.sk = np.where(self.new_er + self.sk > .5, 1., 0.)
                 
     @staticmethod
-    def imgrad(img) -> np.ndarray:
+    def imgrad(img: np.ndarray) -> np.ndarray:
         # ksize = 1: central, ksize = 3: sobel, ksize = -1:scharr
         gx = cv2.Sobel(img, -1, 1, 0, ksize=1, borderType=cv2.BORDER_REFLECT)
         gy = cv2.Sobel(img, -1, 0, 1, ksize=1, borderType=cv2.BORDER_REFLECT)
