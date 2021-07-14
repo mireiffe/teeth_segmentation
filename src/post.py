@@ -50,66 +50,60 @@ class PostProc():
         self._saveSteps()
 
     def toGADF(self, lbl):
+        clrs = ['r', 'g', 'b', 'c', 'm', 'y', 'k'] * 10
         dt = 0.1
         mu = 1
-        num_lbl = np.max(lbl)
+        num_lbl = np.max(lbl) + 1
         X, Y = np.mgrid[0:self.m, 0:self.n]
-        self.lbl_fa = []
-        for lb in range(num_lbl):
+        _regs = []
+        cal_regs = []
+        for lb in range(1, num_lbl):
             if (lb not in lbl) or (lb == 0):
                 continue
-            _reg = np.where(lbl == (lb), -1., 1.)
-            _phi = _reg
+            _regs.append(np.where(lbl == (lb), -1., 1.))
+            cal_regs.append(np.where((lbl == 0) + (lbl == lb), 1., 0.))
 
-            Rein = Reinitial(dt=.1, width=5)
-            
-            infl_reg = np.where((lbl == 0) + (lbl == lb), 1., 0.)
-            # infl_reg = np.where((lbl == lb), 1., 0.)
-            _k = 0
-            _Fc = - 1 * (lbl == lb)
+        Rein = Reinitial(dt=.1, width=5)
+        _phis = Rein.getSDF(np.transpose(_regs, (1, 2, 0)))
 
-            while True:
-                _k += 1
-                if _k % 1 == 0:
-                    # _phi = Rein.getSDF(_phi)
-                    pass
-                else:
-                    pass
-                _phi = skfmm.distance(_phi)
-                gx, gy = self.imgrad(_phi)
-                _Fa = - 5 * (gx * self.Fa[..., 0] + gy * self.Fa[..., 1]) * self.er_Fa
-                _Fb = - .1 * (1 - self.er_Fa)
-                # _Fb = 0
-                _F = (_Fa + _Fb + _Fc) * infl_reg + mu * self.kappa(_phi)[0]
-                _F = np.where(self.lbl0 == 0, self.gaussfilt(_F, sig=1), _F)
-                new_phi = _phi + dt * _F
+        _k = 0
+        while True:
+            _k += 1
+            if _k % 3 == 0:
+                pass
+            else:
+                pass
 
-                err = np.abs(new_phi - _phi).sum() / np.abs(np.ones_like(new_phi)).sum()
-                if err < 1E-06 or _k > 30:
-                    self.lbl_fa.append(np.where(new_phi < 0, lb, 0))
-                    break
-            
-                # plt.figure(1)
-                # plt.cla()
-                # plt.imshow(self.img)
-                # plt.imshow(self.lbl0==0, alpha=.3)
-                # plt.contour(new_phi, levels=[0], colors='r')
-                # # plt.quiver(Y, X, self.Fa[..., 0], self.Fa[..., 1], angles='xy', scale_units='xy', scale=1, color='blue')
-                # # plt.show()
-                # plt.title(f'iter = {_k:d}')
-                # plt.pause(.1)
+            gx, gy = self.imgrad(_phis)
+            _Fa = - 1 * (gx.transpose((2, 0, 1)) * self.Fa[..., 0] + gy.transpose((2, 0, 1)) * self.Fa[..., 1]) * self.er_Fa
+            _Fb = - 1 * (1 - self.er_Fa)
 
-                _phi = new_phi
+            regs = np.where(_phis < 0, 1., 0.)
+            all_regs = regs.sum(axis=-1)
+            _Fo = all_regs - regs.transpose((2, 0, 1))
+
+            kap = self.kappa(_phis)[0].transpose((2, 0, 1))
+            _F = (_Fa + _Fb) * cal_regs + _Fo + mu * kap
+            new_phis = _phis + dt * _F.transpose((1, 2, 0))
+
+            err = np.abs(new_phis - _phis).sum() / new_phis.size
+            if err < 1E-06 or _k > 3000:
+                self.lbl_fa.append(np.where(new_phis < 0, lb, 0))
+                break
+        
+            plt.figure(1)
+            plt.cla()
+            plt.imshow(self.img)
+            for i in range(_phis.shape[-1]):
+                plt.contour(_phis[..., i], levels=[0], colors=clrs[i])
+            plt.title(f'iter = {_k:d}')
+            # plt.show()
+            plt.pause(.1)
+
+            _phis = new_phis
 
         xx = 1
 
-        plt.figure()
-        plt.figure()
-        plt.imshow(self.img)
-        plt.imshow(sum(self.lbl_fa),alpha=.3)
-        plt.contour(sum(self.lbl_fa), levels=np.arange(.5, 20.5), colors='r')
-        plt.show()
-            
 
     def labeling(self):
         '''
