@@ -158,7 +158,26 @@ class PostProc():
         clrs = ['r'] * 100
         for i in range(np.max(self.res)):
             plt.contour(np.where(self.res == i+1, -1., 1.), levels=[0], colors=clrs[i])
-        plt.savefig(f'{self.dir_img}res.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+        plt.savefig(f'{self.dir_img}res_0.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+        # get colormap
+        ncolors = 256
+        color_array = plt.get_cmap('gist_rainbow')(range(ncolors))
+        # change alpha values
+        color_array[:,-1] = np.linspace(0.0, 1.0, ncolors)
+        # create a colormap object
+        from matplotlib.colors import LinearSegmentedColormap
+        map_object = LinearSegmentedColormap.from_list(name='rainbow_alpha', colors=color_array)
+        # register this new colormap with matplotlib
+        plt.register_cmap(cmap=map_object)
+        plt.close('all')
+        plt.figure()
+        plt.imshow(self.img)
+        _res = np.where(self.res == -1, 0, self.res)
+        plt.imshow(_res, alpha=.5, cmap='rainbow_alpha')
+        plt.savefig(f'{self.dir_img}res_1.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+        for i in range(np.max(self.res)):
+            plt.contour(np.where(self.res == i+1, -1., 1.), levels=[0], colors='r')
+        plt.savefig(f'{self.dir_img}res_2.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
 
         plt.close('all')
         plt.figure()
@@ -177,30 +196,6 @@ class PostProc():
         plt.savefig(f'{self.dir_img}res_tot.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
         # plt.pause(10)
 
-
-        # get colormap
-        ncolors = 256
-        color_array = plt.get_cmap('gist_rainbow')(range(ncolors))
-
-        # change alpha values
-        color_array[:,-1] = np.linspace(0.0, 1.0, ncolors)
-
-        # create a colormap object
-        from matplotlib.colors import LinearSegmentedColormap
-        map_object = LinearSegmentedColormap.from_list(name='rainbow_alpha', colors=color_array)
-
-        # register this new colormap with matplotlib
-        plt.register_cmap(cmap=map_object)
-
-        plt.close('all')
-        plt.figure()
-        plt.imshow(self.img)
-        for i in range(np.max(self.res)):
-            plt.contour(np.where(self.res == i+1, -1., 1.), levels=[0], colors='r')
-        _res = np.where(self.res == -1, 0, self.res)
-        plt.imshow(_res, alpha=.5, cmap='rainbow_alpha')
-        plt.show()
-        xx=1
 
     def kappa(self, phis, ksz=1, h=1, mode=0):
         x, y = self.imgrad(phis)
