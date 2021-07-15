@@ -77,8 +77,8 @@ if __name__=='__main__':
     imgs = args.imgs if args.imgs else [0]
 
     today = time.strftime("%y%m%d", time.localtime(time.time()))
-    label_test = 'test_small'
-    # label_test = None
+    # label_test = 'test_small'
+    label_test = None
     if label_test == None:
         dir_result = join('results', f'er_net/{today}/')
     else:
@@ -96,8 +96,8 @@ if __name__=='__main__':
             edrg = EdgeRegion(args, ni, scaling=False)
             _input, _output = edrg.getEr()
 
-            _input = _input[40:212, 200:424]
-            _output = _output[40:212, 200:424]
+            # _input = _input[40:212, 200:424]
+            # _output = _output[40:212, 200:424]
 
             _dt = {'img': _input, 'output': _output}
             saveFile(_dt, path_img)

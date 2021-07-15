@@ -43,8 +43,35 @@ class PostProc():
 
         self.soaking()
         self.lbl = self.labeling()
-        self.toGADF(self.lbl)
-        self.tot_lbl = self.zeroReg(self.lbl)
+        self.lbl_fa = self.toGADF(self.lbl)
+        self.tot_lbl = self.zeroReg(self.lbl_fa)
+        
+        # get colormap
+        ncolors = 256
+        color_array = plt.get_cmap('gist_rainbow')(range(ncolors))
+        # change alpha values
+        color_array[:,-1] = np.linspace(0.0, 1.0, ncolors)
+        # create a colormap object
+        from matplotlib.colors import LinearSegmentedColormap
+        map_object = LinearSegmentedColormap.from_list(name='rainbow_alpha', colors=color_array)
+        # register this new colormap with matplotlib
+        plt.register_cmap(cmap=map_object)
+
+        plt.figure()
+        plt.imshow(self.img)
+        plt.imshow(self.lbl_fa, alpha=.4, cmap='rainbow_alpha')
+        for i in range(int(np.max(self.lbl_fa))):
+            plt.contour(np.where(self.lbl_fa == i+1, -1., 1.), levels=[0], colors='r')
+        plt.title('lbl fa')
+
+        plt.figure()
+        plt.imshow(self.img)
+        plt.imshow(self.tot_lbl, alpha=.4, cmap='rainbow_alpha')
+        for i in range(int(np.max(self.tot_lbl))):
+            plt.contour(np.where(self.tot_lbl == i+1, -1., 1.), levels=[0], colors='r')
+        plt.title('tot lbl')
+        plt.show()
+
         # self.distSize()
         self.res = self.regClass(self.tot_lbl)
         self._saveSteps()
@@ -52,7 +79,8 @@ class PostProc():
     def toGADF(self, lbl):
         clrs = ['r', 'g', 'b', 'c', 'm', 'y', 'k'] * 10
         dt = 0.1
-        mu = 1
+        # mu = .1
+        mu = 0
         num_lbl = np.max(lbl) + 1
         X, Y = np.mgrid[0:self.m, 0:self.n]
         _regs = []
@@ -69,41 +97,46 @@ class PostProc():
         _k = 0
         while True:
             _k += 1
-            if _k % 3 == 0:
+            if _k % 2 == 0:
+                _phis = Rein.getSDF(_phis)
                 pass
             else:
                 pass
 
+
+            _dist = 1
+            regs = np.where(_phis < _dist, _phis - _dist, 0)
+            all_regs = regs.sum(axis=-1)
+            _Fo = - (all_regs - regs.transpose((2, 0, 1)))
+            
             gx, gy = self.imgrad(_phis)
-            _Fa = - 1 * (gx.transpose((2, 0, 1)) * self.Fa[..., 0] + gy.transpose((2, 0, 1)) * self.Fa[..., 1]) * self.er_Fa
+            _Fa = - 1 * (gx.transpose((2, 0, 1)) * self.Fa[..., 0] + gy.transpose((2, 0, 1)) * self.Fa[..., 1]) * self.er_Fa * (self.lbl == 0)
             _Fb = - 1 * (1 - self.er_Fa)
 
-            regs = np.where(_phis < 0, 1., 0.)
-            all_regs = regs.sum(axis=-1)
-            _Fo = all_regs - regs.transpose((2, 0, 1))
-
-            kap = self.kappa(_phis)[0].transpose((2, 0, 1))
-            _F = (_Fa + _Fb) * cal_regs + _Fo + mu * kap
+            kap = self.kappa(_phis)[0] * (np.abs(_phis) < 5)
+            _F = (_Fa + _Fb) * cal_regs + _Fo + mu * kap.transpose((2, 0, 1))
             new_phis = _phis + dt * _F.transpose((1, 2, 0))
 
             err = np.abs(new_phis - _phis).sum() / new_phis.size
-            if err < 1E-06 or _k > 3000:
-                self.lbl_fa.append(np.where(new_phis < 0, lb, 0))
+            if err < 1E-04 or _k > 3:
                 break
         
-            plt.figure(1)
-            plt.cla()
-            plt.imshow(self.img)
-            for i in range(_phis.shape[-1]):
-                plt.contour(_phis[..., i], levels=[0], colors=clrs[i])
-            plt.title(f'iter = {_k:d}')
-            # plt.show()
-            plt.pause(.1)
+            if _k % 3 == 1:
+                plt.figure(1)
+                plt.cla()
+                plt.imshow(self.img)
+                plt.imshow(self.lbl == 0, 'gray', alpha=.3)
+                plt.imshow(self.er_Fa * (self.lbl == 0), alpha=.3)
+                for i in range(_phis.shape[-1]):
+                    plt.contour(_phis[..., i], levels=[0], colors=clrs[i])
+                plt.title(f'iter = {_k:d}')
+                # plt.show()
+                plt.pause(.1)
 
             _phis = new_phis
 
-        xx = 1
-
+        lbls = np.arange(1, new_phis.shape[-1] + 1)
+        return np.dot(np.where(new_phis < 0, 1., 0.), lbls)
 
     def labeling(self):
         '''
@@ -130,18 +163,27 @@ class PostProc():
         idx_zero_reg = np.where(lbl == 0)
         _lbl = np.zeros_like(lbl)
         for idx in zip(*idx_zero_reg):
-            dumy = np.zeros_like(lbl).astype(float)
-            dumy[idx] = 1.
+            val_img = self.img[idx]
+            _k = 0
             while True:
-                dumy = np.where(cv2.filter2D(dumy, -1, np.ones((3,3))) > .01, 1., 0.)
-                _idx = np.where(dumy * (lbl != 0) > 0)
-                if len(_idx[0]) > 0:
-                    _lbl[idx[0], idx[1]] = lbl[_idx[0][0], _idx[1][0]]
+                _k += 1
+                ptch_img = self.img[idx[0]-_k:idx[0]+_k+1, idx[1]-_k:idx[1]+_k+1, :]
+                ptch = lbl[idx[0]-_k:idx[0]+_k+1, idx[1]-_k:idx[1]+_k+1]
+                ele_ptch = np.unique(ptch)
+                if len(ele_ptch) > 2:
                     break
+            min_dist = []
+            for ep in ele_ptch[1:]:
+                idx_ep = np.where(ptch == ep)
+                l2dist = np.sqrt(((val_img - ptch_img[idx_ep])**2).sum(axis=-1))
+                min_dist.append(l2dist.min())
+            el_min = np.argmin(min_dist) + 1
+            _lbl[idx] = ele_ptch[el_min]
+                    
         return lbl + _lbl
 
     def regClass(self, lbl):
-        num_reg = lbl.max()
+        num_reg = int(lbl.max())
 
         indic_kapp = {}
         for ir in range(num_reg):
@@ -162,9 +204,6 @@ class PostProc():
 
             if n_pkapp < n_nkapp:
                 indic_kapp[ir + 1] = n_pkapp - n_nkapp
-
-            if ir+1 == 18:
-                ttt = 1
 
         # for i, ind in indic_kapp.items():
         #     new_lbl = np.where(new_lbl == i, -1, new_lbl)
@@ -232,16 +271,6 @@ class PostProc():
         for i in range(np.max(self.res)):
             plt.contour(np.where(self.res == i+1, -1., 1.), levels=[0], colors=clrs[i])
         plt.savefig(f'{self.dir_img}res_0.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-        # get colormap
-        ncolors = 256
-        color_array = plt.get_cmap('gist_rainbow')(range(ncolors))
-        # change alpha values
-        color_array[:,-1] = np.linspace(0.0, 1.0, ncolors)
-        # create a colormap object
-        from matplotlib.colors import LinearSegmentedColormap
-        map_object = LinearSegmentedColormap.from_list(name='rainbow_alpha', colors=color_array)
-        # register this new colormap with matplotlib
-        plt.register_cmap(cmap=map_object)
         plt.close('all')
         plt.figure()
         plt.imshow(self.img)
