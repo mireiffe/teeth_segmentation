@@ -77,6 +77,7 @@ if __name__=='__main__':
     imgs = args.imgs if args.imgs else [0]
 
     today = time.strftime("%y%m%d", time.localtime(time.time()))
+    today = '210708'
     # label_test = 'ResNest200_deep'
     label_test = None
     if label_test == None:

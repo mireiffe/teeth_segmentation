@@ -153,12 +153,14 @@ class PostProc():
         plt.imshow(self.res)
         plt.savefig(f'{self.dir_img}lbl3.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
         plt.figure()
+        mng = plt.get_current_fig_manager()
+        mng.window.showMaximized()
         plt.imshow(self.img)
         clrs = ['r', 'g', 'b', 'c', 'm', 'y', 'k'] * 10
         clrs = ['r'] * 100
         for i in range(np.max(self.res)):
-            plt.contour(np.where(self.res == i+1, -1., 1.), levels=[0], colors=clrs[i])
-        plt.savefig(f'{self.dir_img}res_0.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+            plt.contour(np.where(self.res == i+1, -1., 1.), levels=[0], colors=clrs[i], linewidths=1)
+        plt.savefig(f'{self.dir_img}res_0.png', dpi=1024, bbox_inches='tight', facecolor='#eeeeee')
         # get colormap
         ncolors = 256
         color_array = plt.get_cmap('gist_rainbow')(range(ncolors))
@@ -174,10 +176,10 @@ class PostProc():
         plt.imshow(self.img)
         _res = np.where(self.res == -1, 0, self.res)
         plt.imshow(_res, alpha=.5, cmap='rainbow_alpha')
-        plt.savefig(f'{self.dir_img}res_1.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+        plt.savefig(f'{self.dir_img}res_1.png', dpi=1024, bbox_inches='tight', facecolor='#eeeeee')
         for i in range(np.max(self.res)):
-            plt.contour(np.where(self.res == i+1, -1., 1.), levels=[0], colors='r')
-        plt.savefig(f'{self.dir_img}res_2.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+            plt.contour(np.where(self.res == i+1, -1., 1.), levels=[0], colors='r', linewidths=1)
+        plt.savefig(f'{self.dir_img}res_2.png', dpi=1024, bbox_inches='tight', facecolor='#eeeeee')
 
         plt.close('all')
         plt.figure()
