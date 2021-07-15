@@ -77,7 +77,7 @@ if __name__=='__main__':
     imgs = args.imgs if args.imgs else [0]
 
     today = time.strftime("%y%m%d", time.localtime(time.time()))
-    # label_test = 'test_small'
+    # label_test = '1'
     label_test = None
     if label_test == None:
         dir_result = join('results', f'er_net/{today}/')
@@ -118,7 +118,7 @@ if __name__=='__main__':
             _dt['er'] = er0
 
             CD = CurveProlong(er0, img, dir_resimg)
-            num_dil = 2
+            num_dil = 3
 
             fig = plt.figure()
             ax = fig.add_subplot(111)
@@ -148,15 +148,17 @@ if __name__=='__main__':
         if args.seg_lvset:
             _dt = loadFile(path_img)
             seg_er = cv2.dilate(_dt['repaired_sk'].astype(float), np.ones((3, 3)), -1, iterations=1)
+            mgn = 2
             edge_er = np.ones_like(seg_er)
-            edge_er[3:-3, 3:-3] = seg_er[3:-3, 3:-3]
+            edge_er[mgn:-mgn, mgn:-mgn] = seg_er[mgn:-mgn, mgn:-mgn]
             temp = edge_er - seg_er
             seg_er = edge_er
 
             bln = Balloon(seg_er, wid=5, radii='auto', dt=0.05)
             phis = bln.phis0
 
-            _dt.update({'seg_er': seg_er - temp, 'phi0': phis})
+            _dt.update({'seg_er': seg_er, 'phi0': phis})
+            # _dt.update({'seg_er': seg_er - temp, 'phi0': phis})
 
             fig, ax = bln.setFigure(phis)
             mng = plt.get_current_fig_manager()
@@ -184,7 +186,8 @@ if __name__=='__main__':
                 
                 err = np.abs(new_phis - phis).sum() / np.ones_like(phis).sum()
                 if (err < tol) or _k > max_iter:
-                    new_phis[..., 0] = np.where(temp, -1., new_phis[..., 0])
+                    # new_phis[..., 0] = np.where(temp, -1., new_phis[..., 0])
+                    # new_phis[..., 0] = np.where(seg_er, -1., new_phis[..., 0])
                     _dt['phi'] = new_phis
                     saveFile(_dt, path_img)
                     break

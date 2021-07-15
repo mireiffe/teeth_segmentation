@@ -1,3 +1,4 @@
+from os import stat
 from os.path import join
 
 import cv2
@@ -10,6 +11,18 @@ import skfmm
 from sklearn.cluster import KMeans
 
 from reinitial import Reinitial
+
+
+# get colormap
+ncolors = 256
+color_array = plt.get_cmap('jet')(range(ncolors))
+# change alpha values
+color_array[:,-1] = np.linspace(0.0, 1.0, ncolors)
+# create a colormap object
+from matplotlib.colors import LinearSegmentedColormap
+map_object = LinearSegmentedColormap.from_list(name='rainbow_alpha', colors=color_array)
+# register this new colormap with matplotlib
+plt.register_cmap(cmap=map_object)
 
 
 class PostProc():
@@ -46,32 +59,6 @@ class PostProc():
         self.lbl_fa = self.toGADF(self.lbl)
         self.tot_lbl = self.zeroReg(self.lbl_fa)
         
-        # get colormap
-        ncolors = 256
-        color_array = plt.get_cmap('gist_rainbow')(range(ncolors))
-        # change alpha values
-        color_array[:,-1] = np.linspace(0.0, 1.0, ncolors)
-        # create a colormap object
-        from matplotlib.colors import LinearSegmentedColormap
-        map_object = LinearSegmentedColormap.from_list(name='rainbow_alpha', colors=color_array)
-        # register this new colormap with matplotlib
-        plt.register_cmap(cmap=map_object)
-
-        plt.figure()
-        plt.imshow(self.img)
-        plt.imshow(self.lbl_fa, alpha=.4, cmap='rainbow_alpha')
-        for i in range(int(np.max(self.lbl_fa))):
-            plt.contour(np.where(self.lbl_fa == i+1, -1., 1.), levels=[0], colors='r')
-        plt.title('lbl fa')
-
-        plt.figure()
-        plt.imshow(self.img)
-        plt.imshow(self.tot_lbl, alpha=.4, cmap='rainbow_alpha')
-        for i in range(int(np.max(self.tot_lbl))):
-            plt.contour(np.where(self.tot_lbl == i+1, -1., 1.), levels=[0], colors='r')
-        plt.title('tot lbl')
-        plt.show()
-
         # self.distSize()
         self.res = self.regClass(self.tot_lbl)
         self._saveSteps()
@@ -80,7 +67,7 @@ class PostProc():
         clrs = ['r', 'g', 'b', 'c', 'm', 'y', 'k'] * 10
         dt = 0.1
         # mu = .1
-        mu = 0
+        mu = .5
         num_lbl = np.max(lbl) + 1
         X, Y = np.mgrid[0:self.m, 0:self.n]
         _regs = []
@@ -92,6 +79,7 @@ class PostProc():
             cal_regs.append(np.where((lbl == 0) + (lbl == lb), 1., 0.))
 
         Rein = Reinitial(dt=.1, width=5)
+        # Rein = Reinitial(dt=.1, width=5, fmm=True)
         _phis = Rein.getSDF(np.transpose(_regs, (1, 2, 0)))
 
         _k = 0
@@ -118,10 +106,10 @@ class PostProc():
             new_phis = _phis + dt * _F.transpose((1, 2, 0))
 
             err = np.abs(new_phis - _phis).sum() / new_phis.size
-            if err < 1E-04 or _k > 3:
+            if err < 1E-04 or _k > 20:
                 break
         
-            if _k % 3 == 1:
+            if _k % 1 == 0:
                 plt.figure(1)
                 plt.cla()
                 plt.imshow(self.img)
@@ -170,8 +158,12 @@ class PostProc():
                 ptch_img = self.img[idx[0]-_k:idx[0]+_k+1, idx[1]-_k:idx[1]+_k+1, :]
                 ptch = lbl[idx[0]-_k:idx[0]+_k+1, idx[1]-_k:idx[1]+_k+1]
                 ele_ptch = np.unique(ptch)
-                if len(ele_ptch) > 2:
-                    break
+                if _k <= 3:
+                    if len(ele_ptch) > 2:
+                        break
+                else:
+                    if len(ele_ptch) > 1:
+                        break
             min_dist = []
             for ep in ele_ptch[1:]:
                 idx_ep = np.where(ptch == ep)
@@ -251,51 +243,52 @@ class PostProc():
         mu_sz_2 = sum([sr ** 2 for sr in sz_reg]) / num_reg
         self.sig_sz = np.sqrt(mu_sz_2 - self.mu_sz ** 2)
 
-    def _saveSteps(self):
-        plt.figure()
-        plt.imshow(self.lbl0)
-        plt.savefig(f'{self.dir_img}lbl0.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-        plt.figure()
-        plt.imshow(self.lbl)
-        plt.savefig(f'{self.dir_img}lbl1.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-        plt.figure()
-        plt.imshow(self.tot_lbl)
-        plt.savefig(f'{self.dir_img}lbl2.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-        plt.figure()
-        plt.imshow(self.res)
-        plt.savefig(f'{self.dir_img}lbl3.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-        plt.figure()
-        plt.imshow(self.img)
-        clrs = ['r', 'g', 'b', 'c', 'm', 'y', 'k'] * 10
-        clrs = ['r'] * 100
-        for i in range(np.max(self.res)):
-            plt.contour(np.where(self.res == i+1, -1., 1.), levels=[0], colors=clrs[i])
-        plt.savefig(f'{self.dir_img}res_0.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-        plt.close('all')
-        plt.figure()
-        plt.imshow(self.img)
-        _res = np.where(self.res == -1, 0, self.res)
-        plt.imshow(_res, alpha=.5, cmap='rainbow_alpha')
-        plt.savefig(f'{self.dir_img}res_1.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-        for i in range(np.max(self.res)):
-            plt.contour(np.where(self.res == i+1, -1., 1.), levels=[0], colors='r')
-        plt.savefig(f'{self.dir_img}res_2.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+    def _showSaveMax(self, obj, name, face=None, contour=None):
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        mng = plt.get_current_fig_manager()
+        mng.window.showMaximized()
 
-        plt.close('all')
-        plt.figure()
-        plt.subplot(2, 2, 1)
-        plt.imshow(self.lbl0)
-        plt.subplot(2, 2, 2)
-        plt.imshow(self.tot_lbl)
-        plt.subplot(2, 2, 3)
-        plt.imshow(self.res)
-        plt.subplot(2, 2, 4)
-        plt.imshow(self.img)
-        # clrs = ['r', 'g', 'b', 'c', 'm', 'y', 'k'] * 10
-        clrs = ['r'] * 100
-        for i in range(np.max(self.res)):
-            plt.contour(np.where(self.res == i+1, -1., 1.), levels=[0], colors=clrs[i])
-        plt.savefig(f'{self.dir_img}res_tot.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+        ax.imshow(obj)
+        if face is not None:
+            _res = np.where(face < 0, 0, face)
+            plt.imshow(_res, alpha=.4, cmap='rainbow_alpha')
+        if contour is not None:
+            Rein = Reinitial()
+            clrs = ['r'] * 100
+            for i in range(int(np.max(contour))):
+                _reg = np.where(contour == i+1, -1., 1.)
+                _reg = Rein.getSDF(_reg)
+                plt.contour(_reg, levels=[0], colors=clrs[i], linewidths=1)
+
+        plt.savefig(f'{self.dir_img}{name}', dpi=1024, bbox_inches='tight', facecolor='#eeeeee')
+        plt.close(fig)
+
+    def _saveSteps(self):
+        self._showSaveMax(self.lbl0, 'lbl0.png')
+        self._showSaveMax(self.lbl, 'lbl.png')
+        self._showSaveMax(self.lbl_fa, 'lbl_fa.png')
+        self._showSaveMax(self.tot_lbl, 'tot_lbl.png')
+        self._showSaveMax(self.res, 'lbl2.png')
+        self._showSaveMax(self.img, 'res_0.png', contour=self.res)
+        self._showSaveMax(self.img, 'res_1.png', face=self.res)
+        self._showSaveMax(self.img, 'res_2.png', face=self.res, contour=self.res)
+
+        # plt.close('all')
+        # plt.figure()
+        # plt.subplot(2, 2, 1)
+        # plt.imshow(self.lbl0)
+        # plt.subplot(2, 2, 2)
+        # plt.imshow(self.tot_lbl)
+        # plt.subplot(2, 2, 3)
+        # plt.imshow(self.res)
+        # plt.subplot(2, 2, 4)
+        # plt.imshow(self.img)
+        # # clrs = ['r', 'g', 'b', 'c', 'm', 'y', 'k'] * 10
+        # clrs = ['r'] * 100
+        # for i in range(int(np.max(self.res))):
+        #     plt.contour(np.where(self.res == i+1, -1., 1.), levels=[0], colors=clrs[i])
+        # plt.savefig(f'{self.dir_img}res_tot.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
         # plt.pause(10)
 
 
@@ -376,7 +369,50 @@ class GADF():
             self.c = 1
 
         self.Fa = self.gadf(img)
-        self.Er = self.edgeRegion()
+        er = self.edgeRegion()
+        er1 = self.fineEr(iter=5, coeff=4)
+        er2 = self.fineEr(er1, iter=2, coeff=4)
+        # res = self.dilation(er2, len=2)
+        # res = self.fineEr(er2, iter=2, coeff=4)
+
+        self.Er = er1
+
+    def fineEr(self, er=None, iter=4, coeff=4):
+        if er is not None:
+            ler, ser = self.smallRegion(er, iter=iter, coeff=coeff)
+        else:
+            ler, ser = self.smallRegion(self.Er, iter=iter, coeff=coeff)
+        del_s = self.delEr(ser)
+        er = ler + del_s
+        return er
+
+    def delEr(self, er):
+        gimg = self.img_orig.mean(axis=2)
+        _lbl = label(er, background=0,connectivity=1)
+        
+        N = {}
+        Sig = {}
+        for i in range(1, _lbl.max() + 1):
+            N[i] = np.sum(_lbl == i)
+            gimg_reg = (_lbl == i) * gimg
+            Sig[i] = ((gimg_reg ** 2).sum() - gimg.sum()) / N[i]
+
+        lst_N, lst_Sig = list(N.values()), list(Sig.values())
+        mu_N, sig_N = np.mean(lst_N), np.std(lst_N)
+        mu_Sig, sig_Sig = np.mean(lst_Sig), np.std(lst_Sig)
+
+        ker = np.ones((3, 3))
+        mean_loc = cv2.filter2D(gimg, -1, ker, borderType=cv2.BORDER_REFLECT)
+        Sig_loc = np.sqrt(cv2.filter2D((gimg - mean_loc) ** 2, -1, ker, borderType=cv2.BORDER_REFLECT))
+
+        dist_sig = (Sig_loc - mu_Sig) / (sig_Sig + self.eps)
+
+        fun_alpha = lambda x: 1 / (1 + np.exp(-x) + self.eps)
+        nx = mu_N + fun_alpha(-dist_sig) * sig_N
+        for k, nn in N.items():
+            if np.sum((nx > nn) * (_lbl == k)) > .5:
+                er = np.where(_lbl == k, 0, er)
+        return er
 
     def gadf(self, img) -> None:
         if self.c == 1:
@@ -441,6 +477,37 @@ class GADF():
             for i in range(self.c)])
         res = np.sqrt(np.sum(((up - un) / (2 * h)) ** 2, axis=0))
         return res
+
+    @staticmethod
+    def smallRegion(er, iter=5, coeff=4) -> tuple:
+        lbl = label(er, background=0,connectivity=1)
+        sz_reg = {}
+        for i in range(1, lbl.max() + 1):
+            sz_reg[i] = np.sum(lbl == i)
+        _lst = list(sz_reg.values())
+        _mu = np.mean(_lst)
+        _sig = np.std(_lst)
+
+        cnt = 0
+        while True:
+            cnt += 1
+            lim_v = _mu + coeff * _sig
+            _items = list(sz_reg.items())
+            for k, sr in _items:
+                if sr > lim_v: del sz_reg[k]
+
+            if cnt > 3: break
+            
+            _lst = list(sz_reg.values())
+            _mu = np.mean(_lst)
+            _sig = np.std(_lst)
+        
+        part_small = np.zeros_like(lbl)
+        for k in sz_reg.keys():
+            part_small += (lbl == k)
+        part_large = er - part_small
+        return part_large, part_small
+
 
     @staticmethod
     def eigvecSort(E:np.ndarray) -> tuple:

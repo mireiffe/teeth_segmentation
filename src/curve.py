@@ -24,8 +24,10 @@ class CurveProlong():
         self.dir_save = dir_save
         self.m, self.n = self.er.shape
     
-        self.gap = int(np.round(self.m * self.n / 200 / 200))
-        self.maxlen_cv = self.gap * (self.num_pts - 1) + self.num_pts
+        self.gap = np.maximum(int(np.round(self.m * self.n / 300 / 300)), 1)
+        self.maxlen_cv = 2 * (self.gap * (self.num_pts - 1) + self.num_pts)
+
+        self.smallReg()
 
         self.preSet()
         self.wid_er = self.measureWidth()
@@ -57,6 +59,16 @@ class CurveProlong():
         self.endPoints()
         # self.dilation(wid_er=self.wid_er, k=k)
         self.findCurves()
+
+    def smallReg(self):
+        lbl = label(self.er)
+        num_reg = []
+        for i in range(int(lbl.max()) + 1):
+            if len(np.where(lbl == i)[0]) < 100:
+                num_reg.append(i)
+
+        for nr in num_reg:
+            self.er = np.where(lbl == nr, 0., self.er)
 
     def measureWidth(self):
         sk_idx = np.where(self.sk == 1)
