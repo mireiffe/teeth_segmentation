@@ -16,7 +16,7 @@ from curve import CurveProlong
 from post import PostProc
 
 
-VISIBLE = False
+VISIBLE = True
 
 def saveFile(dict, fname):
     with open(fname, 'wb') as f:
@@ -77,8 +77,7 @@ if __name__=='__main__':
     imgs = args.imgs if args.imgs else [0]
 
     today = time.strftime("%y%m%d", time.localtime(time.time()))
-    today = '210708'
-    # label_test = 'ResNest200_deep'
+    # label_test = '1'
     label_test = None
     if label_test == None:
         dir_result = join('results', f'er_net/{today}/')
@@ -146,13 +145,17 @@ if __name__=='__main__':
         if args.seg_lvset:
             _dt = loadFile(path_img)
             seg_er = cv2.dilate(_dt['repaired_sk'].astype(float), np.ones((3, 3)), -1, iterations=1)
-            temp = np.ones_like(seg_er)
-            temp[3:-3, 3:-3] = seg_er[3:-3, 3:-3]
-            seg_er = temp
+            mgn = 2
+            edge_er = np.ones_like(seg_er)
+            edge_er[mgn:-mgn, mgn:-mgn] = seg_er[mgn:-mgn, mgn:-mgn]
+            temp = edge_er - seg_er
+            seg_er = edge_er
+
             bln = Balloon(seg_er, wid=5, radii='auto', dt=0.05)
             phis = bln.phis0
 
             _dt.update({'seg_er': seg_er, 'phi0': phis})
+            # _dt.update({'seg_er': seg_er - temp, 'phi0': phis})
 
             fig, ax = bln.setFigure(phis)
             mng = plt.get_current_fig_manager()
@@ -161,8 +164,9 @@ if __name__=='__main__':
             tol = 0.01
             _k = 0
             max_iter = 500
+            _visterm = 10
             while True:
-                _vis = _k % 20 == 0 if VISIBLE else _k % 20 == -1
+                _vis = _k % _visterm == 0 if VISIBLE else _k % _visterm == -1
                 _save = _k % 3 == 3
                 _k += 1
                 _reinit = _k % 10 == 0
@@ -170,7 +174,7 @@ if __name__=='__main__':
                 new_phis = bln.update(phis)
                 print(f"\rimage {ni}, iteration: {_k}", end='')
 
-                if _k == 1:
+                if (_k == 1) or (_k > max_iter):
                     bln.drawContours(_k, phis, ax)
                     plt.savefig(join(dir_resimg, f"test{_k:05d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
                 if _save or _vis:
@@ -180,6 +184,8 @@ if __name__=='__main__':
                 
                 err = np.abs(new_phis - phis).sum() / np.ones_like(phis).sum()
                 if (err < tol) or _k > max_iter:
+                    # new_phis[..., 0] = np.where(temp, -1., new_phis[..., 0])
+                    # new_phis[..., 0] = np.where(seg_er, -1., new_phis[..., 0])
                     _dt['phi'] = new_phis
                     saveFile(_dt, path_img)
                     break
