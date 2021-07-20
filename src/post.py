@@ -132,7 +132,7 @@ class PostProc():
         '''
         seg_res = np.where(self.phi < 0, 1., 0.)
         lbl = label(seg_res, background=0, connectivity=1)
-        del_tol = self.m * self.n / 750
+        del_tol = self.m * self.n / 2000
         for lbl_i in range(1, np.max(lbl) + 1):
             idx_i = np.where(lbl == lbl_i)
             num_i = len(idx_i[0])
@@ -155,8 +155,12 @@ class PostProc():
             _k = 0
             while True:
                 _k += 1
-                ptch_img = self.img[idx[0]-_k:idx[0]+_k+1, idx[1]-_k:idx[1]+_k+1, :]
-                ptch = lbl[idx[0]-_k:idx[0]+_k+1, idx[1]-_k:idx[1]+_k+1]
+                x0 = np.maximum(idx[0]-_k, 0)
+                x1 = np.minimum(idx[0]+_k+1, self.m)
+                y0 = np.maximum(idx[1]-_k, 0)
+                y1 = np.minimum(idx[1]+_k+1, self.n)
+                ptch_img = self.img[x0:x1, y0:y1, :]
+                ptch = lbl[x0:x1, y0:y1]
                 ele_ptch = np.unique(ptch)
                 if _k <= 3:
                     if len(ele_ptch) > 2:
@@ -197,33 +201,37 @@ class PostProc():
             if n_pkapp < n_nkapp:
                 indic_kapp[ir + 1] = n_pkapp - n_nkapp
 
-        # for i, ind in indic_kapp.items():
-        #     new_lbl = np.where(new_lbl == i, -1, new_lbl)
-
-        # # second phase
-        # kmeans = KMeans(n_clusters=2, random_state=0).fit(self.img.reshape((-1, 3)))
-        # kmlbl = kmeans.labels_.reshape((self.m, self.n))
+        # second phase
+        kmeans = KMeans(n_clusters=2, random_state=0).fit(self.img.reshape((-1, 3)))
+        kmlbl = kmeans.labels_.reshape((self.m, self.n))
 
         # km0 = ((kmlbl == 0) * self.img.mean(axis=2)).sum() / (kmlbl == 0).sum()
         # km1 = ((kmlbl == 1) * self.img.mean(axis=2)).sum() / (kmlbl == 1).sum()
 
-        # mustBT = np.argmax([km0, km1])
+        km0 = ((kmlbl == 0) * self.img[..., 1:].mean(axis=2)).sum() / (kmlbl == 0).sum()
+        km1 = ((kmlbl == 1) * self.img[..., 1:].mean(axis=2)).sum() / (kmlbl == 1).sum()
 
-        # indic_kmeans = {}
-        # for ir in range(num_reg):
-        #     if (ir + 1) not in lbl:
-        #         continue
-        #     _reg = np.where(lbl == (ir+1), 1., 0.)
-        #     _indic = _reg * kmlbl if mustBT else _reg * (1 - kmlbl)
-        #     indic_kmeans[ir+1] = _indic.sum() / _reg.sum()
+        mustBT = np.argmax([km0, km1])
+
+        indic_kmeans = {}
+        for ir in range(num_reg):
+            if (ir + 1) not in lbl:
+                continue
+            _reg = np.where(lbl == (ir+1), 1., 0.)
+            _indic = _reg * kmlbl if mustBT else _reg * (1 - kmlbl)
+            indic_kmeans[ir+1] = _indic.sum() / _reg.sum()
 
         temp = lbl
-        temp2 = lbl
         new_lbl = lbl
         for i, ind in indic_kapp.items():
             temp = np.where(temp == i, ind, temp)
-            temp2 = np.where(temp2 == i, indic_kapp[i], temp2)
             new_lbl = np.where(new_lbl == i, -1, new_lbl)
+
+        temp2 = lbl
+        for i, ind in indic_kmeans.items():
+            temp2 = np.where(temp2 == i, ind, temp2)
+            if ind < .2:
+                new_lbl = np.where(new_lbl == i, -1, new_lbl)
 
         plt.figure()
         plt.imshow(temp)
@@ -267,12 +275,14 @@ class PostProc():
     def _saveSteps(self):
         self._showSaveMax(self.lbl0, 'lbl0.png')
         self._showSaveMax(self.lbl, 'lbl.png')
+        self._showSaveMax(self.er_Fa, 'er_fa.png')
         self._showSaveMax(self.lbl_fa, 'lbl_fa.png')
         self._showSaveMax(self.tot_lbl, 'tot_lbl.png')
         self._showSaveMax(self.res, 'lbl2.png')
+        self._showSaveMax(self.res, 'lbl2.png')
         self._showSaveMax(self.img, 'res_0.png', contour=self.res)
-        self._showSaveMax(self.img, 'res_1.png', face=self.res)
-        self._showSaveMax(self.img, 'res_2.png', face=self.res, contour=self.res)
+        # self._showSaveMax(self.img, 'res_1.png', face=self.res)
+        # self._showSaveMax(self.img, 'res_2.png', face=self.res, contour=self.res)
 
         # plt.close('all')
         # plt.figure()

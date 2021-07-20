@@ -16,7 +16,7 @@ from curve import CurveProlong
 from post import PostProc
 
 
-VISIBLE = False
+VISIBLE = True
 
 def saveFile(dict, fname):
     with open(fname, 'wb') as f:
@@ -96,9 +96,6 @@ if __name__=='__main__':
             edrg = EdgeRegion(args, ni, scaling=False)
             _input, _output = edrg.getEr()
 
-            # _input = _input[40:212, 200:424]
-            # _output = _output[40:212, 200:424]
-
             _dt = {'img': _input, 'output': _output}
             saveFile(_dt, path_img)
             print(f"Edge region: {path_img} is saved!!")
@@ -118,7 +115,7 @@ if __name__=='__main__':
             _dt['er'] = er0
 
             CD = CurveProlong(er0, img, dir_resimg)
-            num_dil = 3
+            num_dil = 2
 
             fig = plt.figure()
             ax = fig.add_subplot(111)
@@ -167,8 +164,9 @@ if __name__=='__main__':
             tol = 0.01
             _k = 0
             max_iter = 500
+            _visterm = 10
             while True:
-                _vis = _k % 20 == 0 if VISIBLE else _k % 20 == -1
+                _vis = _k % _visterm == 0 if VISIBLE else _k % _visterm == -1
                 _save = _k % 3 == 3
                 _k += 1
                 _reinit = _k % 10 == 0
@@ -176,7 +174,7 @@ if __name__=='__main__':
                 new_phis = bln.update(phis)
                 print(f"\rimage {ni}, iteration: {_k}", end='')
 
-                if _k == 1:
+                if (_k == 1) or (_k > max_iter):
                     bln.drawContours(_k, phis, ax)
                     plt.savefig(join(dir_resimg, f"test{_k:05d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
                 if _save or _vis:

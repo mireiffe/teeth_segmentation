@@ -14,7 +14,7 @@ from processing import Processing
 
 class Balloon():
     eps = np.finfo(float).eps
-    rad_init = 7
+    rad_init = 10
 
     def __init__(self, er:np.ndarray, wid:int, radii='auto', dt:float=0.1):
         self.er = er
