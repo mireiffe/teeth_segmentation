@@ -1,16 +1,11 @@
-import os
-from os.path import join
-
 from skimage.morphology import skeletonize
 import numpy as np
-import pickle
 import cv2
 import matplotlib.pyplot as plt
-from torch.nn.functional import interpolate
 
-from shockFilter import coherence_filter
 from skimage.measure import label
 
+from gadf import GADF
 from reinitial import Reinitial
 
 
@@ -30,11 +25,78 @@ class CurveProlong():
         self.smallReg()
 
         self.preSet()
+        self.findCurves()
+
         self.wid_er = self.measureWidth()
         plt.figure()
         plt.imshow(self.img)
         plt.imshow(self.sk, 'gray', alpha=.5)
         plt.savefig(f'{self.dir_save}skel0.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+
+        self.GADF = GADF(self.img)
+        self.Fa = self.GADF.Fa
+        self.er_Fa = self.GADF.Er
+
+        self.lbl_er =  label(self.er_Fa, background=0, connectivity=1)
+
+        _lbl_er = self.lbl_er * self.er
+        temp = np.zeros_like(self.lbl_er)
+        ctr = 0.5
+        for i in range(int(self.lbl_er.max())):
+            i_r = i + 1
+            ids_r = np.where(self.lbl_er == i_r)
+            sz_r = len(ids_r[0])
+            sz_rer = len(np.where(_lbl_er == i_r)[0])
+
+            if sz_rer / sz_r > ctr:
+                temp[ids_r] = 1
+
+        num_cut = 11
+        cut_pix = self.er
+        for ie in self.ind_end:
+            _t = np.array(ie[num_cut + 1]) - np.array(ie[num_cut - 1])
+            _np = np.array([_t[1], -_t[0]])
+            _nn = np.array([-_t[1], _t[0]])
+            _n0 = np.array(ie[num_cut])
+
+            _kp, _kn = 1, 1
+            while True:
+                _xp = (_n0 + _np * _kp / 15).astype(int)
+                _xn = (_n0 + _nn * _kn / 15).astype(int)
+
+                if np.any(_xp < [0, 0]) or np.any(_xp >= [self.m, self.n]):
+                    continue
+                if np.any(_xn < [0, 0]) or np.any(_xn >= [self.m, self.n]):
+                    continue
+
+                _xp = list(zip(_xp))
+                _xn = list(zip(_xn))
+
+                if self.er[_xp] == 1:
+                    cut_pix[_xp] = 0
+                    _kp += 1
+                if self.er[_xn] == 1:
+                    cut_pix[_xn] = 0
+                    _kn += 1
+                if (self.er[_xn] != 1)  and (self.er[_xp] != 1):
+                    break
+                
+        temp2 = np.zeros_like(self.lbl_er)
+        temp3 = np.zeros_like(self.lbl_er)
+        for ie in self.ind_end:
+            temp2[list(zip(*ie[:1]))] = 1
+            temp3[list(zip(*ie[:10]))] = 1
+        temp2 = cv2.dilate(temp2.astype(float), np.ones((3, 3)), iterations=3)
+        temp3 = cv2.dilate(temp3.astype(float), np.ones((3, 3)), iterations=3)
+
+        plt.figure()
+        plt.imshow(self.er, 'gray')
+        plt.imshow(temp, 'rainbow_alpha')
+        plt.imshow(self.sk, 'rainbow_alpha', vmax=5, alpha=3)
+        plt.imshow(temp2, 'rainbow_alpha', vmax=2, alpha=1)
+        plt.imshow(temp3, 'rainbow_alpha', vmax=3, alpha=1)
+        plt.show()
+
 
         self.dilation(wid_er=self.wid_er)
         plt.figure()
@@ -152,7 +214,9 @@ class CurveProlong():
                 self.ind_end.append([(iy, ix)])
                 _end[iy, ix] = 1
 
-    def findCurves(self):
+    def findCurves(self, maxlen=None):
+        if maxlen is None:
+            maxlen = self.maxlen_cv
         # find curves
         for idx in self.ind_end:
             y0, x0 = idx[0]
@@ -167,14 +231,15 @@ class CurveProlong():
                     if _pre and _curr:
                         idx.append((y_i + yy_i - 1, x_i + xx_i - 1))
                 y0, x0 = y_i, x_i
-                if len(idx) >= self.maxlen_cv:
+                if len(idx) >= maxlen:
                     break
 
         lst_del = []
         for idx in self.ind_end:
             if len(idx) < self.maxlen_cv // 3:
                 lst_del.append(idx)
-        for ld in lst_del: self.ind_end.remove(ld)
+        for ld in lst_del:
+            self.ind_end.remove(ld)
 
     def dilCurve(self):
         _gap = 1 / self.gap / 5
