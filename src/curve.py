@@ -51,43 +51,30 @@ class CurveProlong():
             if sz_rer / sz_r > ctr:
                 temp[ids_r] = 1
 
+        rad = round(2 * self.wid_er)
+        Y, X = np.indices([2 * rad + 1, 2 * rad + 1])
+        cen_pat = rad
+        ker = np.where((X - cen_pat)**2 + (Y - cen_pat)**2 <= rad**2, 1., 0.)
+
         num_cut = 11
-        cut_pix = self.er
+        # cut_pix = np.zeros_like(self.lbl_er)
+        # for ie in self.ind_end:
+        #     cut_pix[list(zip(ie[int(num_cut+self.wid_er)]))] = 1
+        # cut_pix = cv2.filter2D(cut_pix.astype(float), -1, np.ones((2 * rad + 1, 2 * rad + 1))) > 0.1
+        # cut_er = np.where(cut_pix, 0, self.er)
+        # lbl_cuter = label(cut_er, background=0, connectivity=1)
+
+        cut_end = np.zeros_like(self.lbl_er)
         for ie in self.ind_end:
-            _t = np.array(ie[num_cut + 1]) - np.array(ie[num_cut - 1])
-            _np = np.array([_t[1], -_t[0]])
-            _nn = np.array([-_t[1], _t[0]])
-            _n0 = np.array(ie[num_cut])
-
-            _kp, _kn = 1, 1
-            while True:
-                _xp = (_n0 + _np * _kp / 15).astype(int)
-                _xn = (_n0 + _nn * _kn / 15).astype(int)
-
-                if np.any(_xp < [0, 0]) or np.any(_xp >= [self.m, self.n]):
-                    continue
-                if np.any(_xn < [0, 0]) or np.any(_xn >= [self.m, self.n]):
-                    continue
-
-                _xp = list(zip(_xp))
-                _xn = list(zip(_xn))
-
-                if self.er[_xp] == 1:
-                    cut_pix[_xp] = 0
-                    _kp += 1
-                if self.er[_xn] == 1:
-                    cut_pix[_xn] = 0
-                    _kn += 1
-                if (self.er[_xn] != 1)  and (self.er[_xp] != 1):
-                    break
+            cut_end = np.where(lbl_cuter == cut_end[list(zip(ie[0]))], 1., 0.)
                 
         temp2 = np.zeros_like(self.lbl_er)
         temp3 = np.zeros_like(self.lbl_er)
         for ie in self.ind_end:
             temp2[list(zip(*ie[:1]))] = 1
             temp3[list(zip(*ie[:10]))] = 1
-        temp2 = cv2.dilate(temp2.astype(float), np.ones((3, 3)), iterations=3)
-        temp3 = cv2.dilate(temp3.astype(float), np.ones((3, 3)), iterations=3)
+        temp2 = cv2.filter2D(temp2.astype(float), -1, ker) > 0.1
+        temp3 = cv2.filter2D(temp3.astype(float), -1, ker) > 0.1
 
         plt.figure()
         plt.imshow(self.er, 'gray')
