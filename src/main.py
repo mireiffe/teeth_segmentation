@@ -179,7 +179,7 @@ if __name__=='__main__':
                     plt.savefig(join(dir_resimg, f"test{_k:05d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
                 if _save or _vis:
                     bln.drawContours(_k, phis, ax)
-                    _save: plt.savefig(join(dir_resimg, f"test{_k:05d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+                    # _save: plt.savefig(join(dir_resimg, f"test{_k:05d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
                     if _vis: plt.pause(.1)
                 
                 err = np.abs(new_phis - phis).sum() / np.ones_like(phis).sum()

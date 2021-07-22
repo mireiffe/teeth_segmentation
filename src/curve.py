@@ -57,16 +57,53 @@ class CurveProlong():
         ker = np.where((X - cen_pat)**2 + (Y - cen_pat)**2 <= rad**2, 1., 0.)
 
         num_cut = 11
+        cut_pix = np.copy(self.er)
+        for ie in self.ind_end:
+            _t = np.array(ie[num_cut + 1]) - np.array(ie[num_cut - 1])
+            _nt = np.sqrt(np.sum(_t**2))
+            _t = _t / _nt
+            _np = np.array([_t[1], -_t[0]])
+            _nn = np.array([-_t[1], _t[0]])
+            _n0 = np.array(ie[num_cut])
+            # _n1 = np.array(ie[num_cut + 1])
+
+            _kp, _kn = 0, 0
+            while True:
+                _xp = (_n0 + _np * _kp / 2).astype(int)
+                # _xp1 = (_n1 + _np * _kp / 2).astype(int)
+
+                if np.any(_xp < [0, 0]) or np.any(_xp >= [self.m, self.n]):
+                    break
+
+                if self.er[_xp[0], _xp[1]] == 1:
+                    cut_pix[_xp[0], _xp[1]] = 0
+                    # cut_pix[_xp1[0], _xp1[1]] = 0
+                    _kp += 1
+                else:
+                    break
+            while True:
+                _xn = (_n0 + _nn * _kn / 2).astype(int)
+                # _xn1 = (_n1 + _nn * _kn / 2).astype(int)
+
+                if np.any(_xn < [0, 0]) or np.any(_xn >= [self.m, self.n]):
+                    break
+
+                if self.er[_xn[0], _xn[1]] == 1:
+                    cut_pix[_xn[0], _xn[1]] = 0
+                    # cut_pix[_xn1[0], _xn1[1]] = 0
+                    _kn += 1
+                else:
+                    break
         # cut_pix = np.zeros_like(self.lbl_er)
         # for ie in self.ind_end:
         #     cut_pix[list(zip(ie[int(num_cut+self.wid_er)]))] = 1
         # cut_pix = cv2.filter2D(cut_pix.astype(float), -1, np.ones((2 * rad + 1, 2 * rad + 1))) > 0.1
         # cut_er = np.where(cut_pix, 0, self.er)
-        # lbl_cuter = label(cut_er, background=0, connectivity=1)
+        lbl_cutpix = label(cut_pix, background=0, connectivity=1)
 
         cut_end = np.zeros_like(self.lbl_er)
         for ie in self.ind_end:
-            cut_end = np.where(lbl_cuter == cut_end[list(zip(ie[0]))], 1., 0.)
+            cut_end = np.where(lbl_cutpix == lbl_cutpix[list(zip(ie[0]))], 1., cut_end)
                 
         temp2 = np.zeros_like(self.lbl_er)
         temp3 = np.zeros_like(self.lbl_er)
@@ -210,8 +247,8 @@ class CurveProlong():
             for y_i, x_i in idx:
                 ptch = self.sk[y_i-1:y_i+2, x_i-1:x_i+2]
                 ind_ptch = np.where(ptch > .5)
-                # if len(ind_ptch[0]) > 3: 
-                    # continue
+                if len(ind_ptch[0]) > 3: 
+                    continue
                 for yy_i, xx_i in zip(*ind_ptch):
                     _pre = (yy_i + y_i - 1 != y0) or (xx_i + x_i - 1!= x0)
                     _curr = (yy_i != 1) or (xx_i != 1)
