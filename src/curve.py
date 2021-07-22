@@ -56,15 +56,17 @@ class CurveProlong():
         cen_pat = rad
         ker = np.where((X - cen_pat)**2 + (Y - cen_pat)**2 <= rad**2, 1., 0.)
 
-        num_cut = 11
-        cut_pix = np.copy(self.er)
+        num_cut = 21
+        # cut_pix = np.copy(self.er)
+        cut_pix = np.zeros_like(self.er)
         for ie in self.ind_end:
-            _t = np.array(ie[num_cut + 1]) - np.array(ie[num_cut - 1])
+            nc = num_cut+1 if len(ie) > num_cut + 1 else len(ie) - 1
+            _t = np.array(ie[nc]) - np.array(ie[nc - 2])
             _nt = np.sqrt(np.sum(_t**2))
             _t = _t / _nt
             _np = np.array([_t[1], -_t[0]])
             _nn = np.array([-_t[1], _t[0]])
-            _n0 = np.array(ie[num_cut])
+            _n0 = np.array(ie[nc - 1])
             # _n1 = np.array(ie[num_cut + 1])
 
             _kp, _kn = 0, 0
@@ -76,51 +78,64 @@ class CurveProlong():
                     break
 
                 if self.er[_xp[0], _xp[1]] == 1:
-                    cut_pix[_xp[0], _xp[1]] = 0
+                    cut_pix[_xp[0], _xp[1]] = 1
                     # cut_pix[_xp1[0], _xp1[1]] = 0
                     _kp += 1
                 else:
                     break
             while True:
                 _xn = (_n0 + _nn * _kn / 2).astype(int)
-                # _xn1 = (_n1 + _nn * _kn / 2).astype(int)
-
                 if np.any(_xn < [0, 0]) or np.any(_xn >= [self.m, self.n]):
                     break
 
                 if self.er[_xn[0], _xn[1]] == 1:
-                    cut_pix[_xn[0], _xn[1]] = 0
+                    cut_pix[_xn[0], _xn[1]] = 1
                     # cut_pix[_xn1[0], _xn1[1]] = 0
                     _kn += 1
                 else:
                     break
-        # cut_pix = np.zeros_like(self.lbl_er)
-        # for ie in self.ind_end:
-        #     cut_pix[list(zip(ie[int(num_cut+self.wid_er)]))] = 1
-        # cut_pix = cv2.filter2D(cut_pix.astype(float), -1, np.ones((2 * rad + 1, 2 * rad + 1))) > 0.1
-        # cut_er = np.where(cut_pix, 0, self.er)
-        lbl_cutpix = label(cut_pix, background=0, connectivity=1)
+            
+
+        lbl_cutpix = label(np.where(cut_pix, 0, self.er), background=0, connectivity=1)
 
         cut_end = np.zeros_like(self.lbl_er)
+        cut_lbl = np.zeros_like(self.lbl_er)
         for ie in self.ind_end:
             cut_end = np.where(lbl_cutpix == lbl_cutpix[list(zip(ie[0]))], 1., cut_end)
-                
+            cut_lbl = np.where(lbl_cutpix == lbl_cutpix[list(zip(ie[0]))], lbl_cutpix[list(zip(ie[0]))], cut_lbl)
+
+        self.new_er = np.copy(self.er)
+        er_cut = cut_end * temp
+        er_end_lbl = label(self.er_Fa * (1 - cut_pix), background=0, connectivity=1)
+        for cl in range(cut_lbl.max()):
+            _cl = cl + 1
+            _reg = (cut_lbl == _cl) * er_cut
+            _lbl = (er_end_lbl * _reg).max()
+            sz_reg = np.sum(_reg)
+            if sz_reg >= num_cut // 2:
+                add_reg = np.where(er_end_lbl == _lbl, 1., 0.)
+                add_reg = cv2.dilate(add_reg, np.ones((3, 3)), iterations=1)
+                self.new_er = np.where(add_reg, 1., self.new_er)
+
+            
         temp2 = np.zeros_like(self.lbl_er)
         temp3 = np.zeros_like(self.lbl_er)
         for ie in self.ind_end:
             temp2[list(zip(*ie[:1]))] = 1
-            temp3[list(zip(*ie[:10]))] = 1
+            temp3[list(zip(*ie[:20]))] = 1
         temp2 = cv2.filter2D(temp2.astype(float), -1, ker) > 0.1
         temp3 = cv2.filter2D(temp3.astype(float), -1, ker) > 0.1
+
+        plt.figure(); plt.imshow(self.er, 'gray'); plt.imshow(cut_end, 'rainbow_alpha'); plt.imshow(temp, 'rainbow_alpha', vmax=2); plt.show()
 
         plt.figure()
         plt.imshow(self.er, 'gray')
         plt.imshow(temp, 'rainbow_alpha')
         plt.imshow(self.sk, 'rainbow_alpha', vmax=5, alpha=3)
+        plt.imshow(self.sk_phi, 'rainbow_alpha', vmax=5, alpha=3)
         plt.imshow(temp2, 'rainbow_alpha', vmax=2, alpha=1)
         plt.imshow(temp3, 'rainbow_alpha', vmax=3, alpha=1)
         plt.show()
-
 
         self.dilation(wid_er=self.wid_er)
         plt.figure()
@@ -224,8 +239,9 @@ class CurveProlong():
         gx, gy = self.imgrad(self.psi)
         ng = np.sqrt(gx ** 2 + gy ** 2)
         
-        self.sk = np.where((ng < .80) * (self.er > .5), 1., 0.)
-        self.sk = skeletonize(self.sk)
+        self.sk_phi = np.where((ng < .85) * (self.er > .5), 1., 0.)
+        self.sk = skeletonize(self.sk_phi)
+        self.sk = skeletonize(self.er)
 
     def endPoints(self):
         # find end points
