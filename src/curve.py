@@ -10,7 +10,7 @@ from reinitial import Reinitial
 
 
 class CurveProlong():
-    num_pts = 5
+    num_pts = 10
 
     def __init__(self, er, img, dir_save):
         self.er0 = np.copy(er)
@@ -33,6 +33,9 @@ class CurveProlong():
         self.ker = ker
 
         self.removeHoles()
+        self.skeletonize()
+        self.removeShorts()
+
         self.skeletonize()
         self.endPoints()
         self.findCurves()
@@ -123,7 +126,7 @@ class CurveProlong():
         self.smallGap()
         self.skeletonize()
         self.endPoints()
-        self.findCurves
+        self.findCurves(branch=True)
         
         plt.figure()
         plt.imshow(self.er, 'gray')
@@ -136,9 +139,10 @@ class CurveProlong():
 
 
     def reSet(self, k):
-        self.sk = skeletonize(self.sk)
+        # self.sk = skeletonize(self.sk)
 
-        _dil = cv2.filter2D(self.sk.astype(float), -1, self.ker) > 0.1
+        # _dil = cv2.filter2D(self.sk.astype(float), -1, self.ker) > 0.1
+        _dil = cv2.filter2D(self.new_er.astype(float), -1, self.ker) > 0.1
         _sk = skeletonize(np.where(_dil, 1., self.er)).astype(float)
         dil_ker = np.ones((2*round(self.wid_er)+1, 2*round(self.wid_er)+1))
         self.er = np.where(self.er < .5, cv2.dilate(_sk, dil_ker, iterations=1), self.er)
@@ -149,7 +153,7 @@ class CurveProlong():
         self.smallGap()
         self.skeletonize()
         self.endPoints()
-        self.findCurves()
+        self.findCurves(branch=True)
 
     def findEndCut(self, num_cut):
         cut_pix = np.zeros_like(self.er)
@@ -191,7 +195,7 @@ class CurveProlong():
         return cut_pix
 
     def smallGap(self):
-        num_cut=2 * round(self.wid_er)
+        num_cut = 2 * round(self.wid_er)
         cuts = self.findEndCut(num_cut=num_cut)
         lbl_cutpix = label(np.where(cuts, 0, self.er), background=0, connectivity=1)
         cut_end = np.zeros_like(self.er)
@@ -202,10 +206,54 @@ class CurveProlong():
         _dil = cv2.filter2D(cut_end, -1, self.ker) > 0.1
         _sk = skeletonize(np.where(_dil, 1., self.er)).astype(float)
         dil_ker = np.ones((2*round(self.wid_er)+1, 2*round(self.wid_er)+1))
-        res = np.where(self.er < .5, cv2.dilate(_sk, dil_ker, iterations=1), self.er)
-        self.er = res
+        _res = np.where(self.er < .5, cv2.dilate(_sk, dil_ker, iterations=1), self.er)
+        # self.er = _res
 
+        n_pts = 15
+        gap = int(self.wid_er * 2.5)
+        _gap = .5
+        pts = np.arange(0, -gap, -_gap)
+        res = np.zeros_like(self.er)
+        banned = np.zeros((len(self.ind_end), 1))
+        filled = np.zeros((len(self.ind_end), 1))
+        _er = self.er - cut_end
 
+        _D = np.arange(n_pts)
+        D = np.array([_D * _D, _D, np.ones_like(_D)]).T
+        for iii, idx in enumerate(self.ind_end):
+            _res = np.zeros_like(self.er)
+            for k, pt in enumerate(pts[1:]):
+                if (len(idx) < n_pts) or banned[iii] or filled[iii]:
+                    continue
+                b = np.array(list(zip(*idx[:n_pts]))).T
+                abc = np.linalg.lstsq(D, b, rcond=None)[0]
+                abc[-1, :] = b[0]
+
+                yy = np.round(abc[0, 0] * pt * pt + abc[1, 0] * pt + abc[2, 0]).astype(int)
+                xx = np.round(abc[0, 1] * pt * pt + abc[1, 1] * pt + abc[2, 1]).astype(int)
+
+                _yy = np.round(abc[0, 0] * pts[k] * pts[k] + abc[1, 0] * pts[k] + abc[2, 0]).astype(int)
+                _xx = np.round(abc[0, 1] * pts[k] * pts[k] + abc[1, 1] * pts[k] + abc[2, 1]).astype(int)
+
+                if (yy == _yy) and (xx == _xx):
+                    continue
+                if yy < 0 or xx < 0:
+                    banned[iii] = 1
+                    continue
+                if yy >= self.m or xx >= self.n:
+                    banned[iii] = 1
+                    continue
+                if _er[yy, xx] == 1:
+                    filled[iii] = 1
+                _res[yy, xx] = 1
+            if filled[iii]:
+                res += _res
+
+        if np.abs(res).sum() > 0:
+            dil_ker = np.ones((2*round(self.wid_er)+1, 2*round(self.wid_er)+1))
+            dil_res = cv2.dilate(res, dil_ker, iterations=1)
+            self.er = np.where(self.er < .5, dil_res, self.er)
+            
     def smallReg(self):
         lbl = label(self.er)
         num_reg = []
@@ -266,9 +314,19 @@ class CurveProlong():
         self.er = np.where(self.dil_ends + self.er > .5, 1., 0.)
         self.sk = skeletonize(self.er)
 
-    def removeHoles(self, param_sz=2000):
+    def removeShorts(self, param_del=20):
+        tol = np.sqrt(self.m**2 + self.n**2) / param_del
+        lbl_sk = label(self.sk, background=0, connectivity=2)
+        lbl_er = label(self.er, background=0, connectivity=2)
+        for _ls in range(int(lbl_sk.max())):
+            ls = _ls + 1
+            if np.sum(lbl_sk == ls) < tol:
+                idx = np.where(lbl_sk == ls)
+                self.er = np.where(lbl_er == lbl_er[idx[0][0], idx[1][0]], 0., self.er)
+
+    def removeHoles(self, param_sz=100):
         lbl = label(self.er, background=1, connectivity=1)
-        del_tol = self.m * self.n / param_sz
+        del_tol = self.m * self.n / param_sz**2
         for lbl_i in range(1, np.max(lbl) + 1):
             idx_i = np.where(lbl == lbl_i)
             num_i = len(idx_i[0])
@@ -299,7 +357,7 @@ class CurveProlong():
                 self.ind_end.append([(iy, ix)])
                 _end[iy, ix] = 1
 
-    def findCurves(self, maxlen=None):
+    def findCurves(self, maxlen=None, branch=False):
         if maxlen is None:
             maxlen = self.maxlen_cv
         # find curves
@@ -308,7 +366,7 @@ class CurveProlong():
             for y_i, x_i in idx:
                 ptch = self.sk[y_i-1:y_i+2, x_i-1:x_i+2]
                 ind_ptch = np.where(ptch > .5)
-                if len(ind_ptch[0]) > 3: 
+                if (not branch) and (len(ind_ptch[0]) > 3): 
                     continue
                 for yy_i, xx_i in zip(*ind_ptch):
                     _pre = (yy_i + y_i - 1 != y0) or (xx_i + x_i - 1!= x0)
@@ -368,8 +426,8 @@ class CurveProlong():
                 #     continue
                 self.new_er[yy, xx] = 1
                     
-            if np.abs(self.new_er).sum() > 0:
-                self.sk = np.where(self.new_er + self.sk > .5, 1., 0.)
+            # if np.abs(self.new_er).sum() > 0:
+                # self.sk = np.where(self.new_er + self.sk > .5, 1., 0.)
                 
     @staticmethod
     def imgrad(img: np.ndarray) -> np.ndarray:

@@ -16,7 +16,7 @@ from curve import CurveProlong
 from post import PostProc
 
 
-VISIBLE = True
+VISIBLE = False
 
 def saveFile(dict, fname):
     with open(fname, 'wb') as f:
@@ -74,7 +74,7 @@ if __name__=='__main__':
 
     imgs = args.imgs if args.imgs else [0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 20, 21]
     # imgs = args.imgs if args.imgs else [12, 13, 14, 16, 17, 18, 20, 21]
-    imgs = args.imgs if args.imgs else [0]
+    imgs = args.imgs if args.imgs else [1]
 
     today = time.strftime("%y%m%d", time.localtime(time.time()))
     # label_test = '1'
@@ -137,7 +137,7 @@ if __name__=='__main__':
 
                 CD.reSet(k=i)
 
-            CD.dilation(wid_er=CD.wid_er)
+            CD.smallGap()
             _dt['er'] = CD.er
             _dt['edge_er'] = CD.edge_er
             _dt['repaired_sk'] = CD.sk
