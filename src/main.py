@@ -14,26 +14,10 @@ from edge_region import EdgeRegion
 from balloon import Balloon
 from curve import CurveProlong
 from post import PostProc
+import myTools as mts
 
 
 VISIBLE = False
-
-def saveFile(dict, fname):
-    with open(fname, 'wb') as f:
-        pickle.dump(dict, f)
-    return 0
-
-def loadFile(path):
-    with open(path, 'rb') as f:
-        dict = pickle.load(f)
-    return dict
-
-def makeDir(path):
-    try:
-        os.mkdir(path)
-        print(f"Created a directory {path}")
-    except OSError:
-        pass
 
 def get_args():
     parser = argparse.ArgumentParser(description='Balloon inflated segmentation',
@@ -83,11 +67,12 @@ if __name__=='__main__':
         dir_result = join('results', f'er_net/{today}/')
     else:
         dir_result = join('results', f'er_net/{today}_{label_test}/')
-    makeDir(dir_result)
+    mts.makeDir(dir_result)
 
     for ni in imgs:
         dir_resimg = join(dir_result, f'{ni:05d}/')
-        makeDir(dir_resimg)
+        mts.makeDir(dir_resimg)
+        sts = mts.SaveTools(dir_resimg)
 
         path_img = join(dir_resimg, f'{ni:05d}.pth')
         
@@ -96,31 +81,27 @@ if __name__=='__main__':
             edrg = EdgeRegion(args, ni, scaling=False)
             _input, _output = edrg.getEr()
 
-            _dt = {'img': _input, 'output': _output}
-            saveFile(_dt, path_img)
+            _dt = {'img': _input, 'output': _output, 'er0': np.where(_output > .5, 1., 0.)}
+            mts.saveFile(_dt, path_img)
             print(f"Edge region: {path_img} is saved!!")
-            plt.figure()
-            plt.imshow(_input)
-            plt.savefig(f'{dir_resimg}img.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-            plt.figure()
-            plt.imshow(_output, 'gray')
-            plt.savefig(f'{dir_resimg}er0.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+            
+            sts.imshow(_input, 'img.png')
+            sts.imshow(_output, 'output.png', cmap='gray')
+            sts.imshow(np.where(_output > .5, 1., 0.), 'er0.png', cmap='gray')
 
         if args.repair_er:
-            _dt = loadFile(path_img)
+            _dt = mts.loadFile(path_img)
             img = _dt['img']
             output = _dt['output']
-
-            er0 = np.where(output > .5, 1., 0.)
-            _dt['er0'] = er0
+            er0 = _dt['er0']
 
             CD = CurveProlong(er0, img, dir_resimg)
             num_dil = 2
 
             fig = plt.figure()
             ax = fig.add_subplot(111)
-            mng = plt.get_current_fig_manager()
-            mng.window.showMaximized()
+            # mng = plt.get_current_fig_manager()
+            # mng.window.showMaximized()
             for i in range(num_dil):
                 CD.dilCurve()
 
