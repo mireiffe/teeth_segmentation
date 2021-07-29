@@ -3,3 +3,4 @@ results
 *.pth
 core*
 data
+__pycache__

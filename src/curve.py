@@ -34,6 +34,7 @@ class CurveProlong():
         self.gap = np.maximum(round(np.round(self.m * self.n / 300 / 300)), 1)
         self.maxlen_cv = 2 * (self.gap * (self.num_pts - 1) + self.num_pts)
 
+        self.wid_er = self.measureWidth()
         self.removeHoles()
         self.removeShorts()
         self.preSet()
@@ -49,40 +50,6 @@ class CurveProlong():
 
         self.dilErfa()
 
-        _lbl_er = self.lbl_erfa * self.er
-        temp = np.zeros_like(self.lbl_er)
-        ctr = 0.5
-        for i in range(int(self.lbl_er.max())):
-            i_r = i + 1
-            ids_r = np.where(self.lbl_er == i_r)
-            sz_r = len(ids_r[0])
-            sz_rer = len(np.where(_lbl_er == i_r)[0])
-
-            if sz_rer / sz_r > ctr:
-                temp[ids_r] = 1
-
-        num_cut = 21
-        cut_pix = self.findEndCut(num_cut=num_cut)
-
-        lbl_cutpix = label(np.where(cut_pix, 0, self.er), background=0, connectivity=1)
-        cut_end = np.zeros_like(self.lbl_er)
-        cut_lbl = np.zeros_like(self.lbl_er)
-        for ie in self.ind_end:
-            cut_end = np.where(lbl_cutpix == lbl_cutpix[list(zip(ie[0]))], 1., cut_end)
-            cut_lbl = np.where(lbl_cutpix == lbl_cutpix[list(zip(ie[0]))], lbl_cutpix[list(zip(ie[0]))], cut_lbl)
-
-        er_cut = cut_end * temp
-        er_end_lbl = label(self.er_Fa * (1 - cut_pix), background=0, connectivity=1)
-        for cl in range(cut_lbl.max()):
-            _cl = cl + 1
-            _reg = (cut_lbl == _cl) * er_cut
-            _lbl = (er_end_lbl * _reg).max()
-            sz_reg = np.sum(_reg)
-            if sz_reg >= num_cut // 2:
-                add_reg = np.where(er_end_lbl == _lbl, 1., 0.)
-                add_reg = cv2.dilate(add_reg, np.ones((3, 3)), iterations=1)
-                self.er = np.where(add_reg, 1., self.er)
-            
         self.smallGap()
         self.skeletonize()
         self.endPoints()
@@ -106,10 +73,10 @@ class CurveProlong():
         # self.sk = skeletonize(self.sk)
 
         # _dil = cv2.filter2D(self.sk.astype(float), -1, self.ker) > 0.1
-        _dil = cv2.filter2D(self.new_er.astype(float), -1, self.ker) > 0.1
+        _dil = cv2.filter2D(self.new_er.astype(float), -1, self._ker(self.wid_er / 2)) > 0.1
         _sk = skeletonize(np.where(_dil, 1., self.er)).astype(float)
         dil_ker = np.ones((2*round(self.wid_er)+1, 2*round(self.wid_er)+1))
-        self.er = np.where(self.er < .5, cv2.dilate(_sk, dil_ker, iterations=1), self.er)
+        self.er = np.where(self.er < .5, cv2.filter2D(_sk, -1, self._ker(self.wid_er / 2)) > .1, self.er)
         
         self.skeletonize()
         self.endPoints()
@@ -125,7 +92,7 @@ class CurveProlong():
         ctr = 0.5
         for i in range(int(self.lbl_erfa.max())):
             i_r = i + 1
-            ids_r = np.where(self.lbl_er == i_r)
+            ids_r = np.where(self.lbl_erfa == i_r)
             sz_r = len(ids_r[0])
             sz_rer = len(np.where(lbl_erfa_er == i_r)[0])
 
@@ -136,7 +103,7 @@ class CurveProlong():
         cut_pix = self.findEndCut(num_cut=num_cut)
 
         lbl_cuter = label(np.where(cut_pix, 0, self.er), background=0, connectivity=1)
-        cut_lbl = np.zeros_like(self.lbl_er)
+        cut_lbl = np.zeros_like(self.lbl_erfa)
         for ie in self.ind_end:
             cut_lbl = np.where(lbl_cuter == lbl_cuter[list(zip(ie[0]))], lbl_cuter[list(zip(ie[0]))], cut_lbl)
 
@@ -203,62 +170,29 @@ class CurveProlong():
         _res = np.where(self.er < .5, cv2.dilate(_sk, dil_ker, iterations=1), self.er)
         # self.er = _res
 
-        n_pts = 15
-        gap = int(self.wid_er * 2.5)
         _gap = .5
-        pts = np.arange(0, -gap, -_gap)
+        pts = np.arange(0, -self.wid_er * 30, -_gap)
+        # pts = np.arange(-self.wid_er * 30, self.wid_er * 30, _gap)
         res = np.zeros_like(self.er)
-        banned = np.zeros((len(self.ind_end), 1))
-        filled = np.zeros((len(self.ind_end), 1))
-        _er = self.er - cut_lbl
-
-        _D = np.arange(n_pts)
-        D = np.array([_D * _D, _D, np.ones_like(_D)]).T
-        for iii, idx in enumerate(self.ind_end):
-            _res = np.zeros_like(self.er)
-            b = np.array(list(zip(*idx[:n_pts]))).T
-            abc = np.linalg.lstsq(D, b, rcond=None)[0]
-            abc[-1, :] = b[0]
-            for k, pt in enumerate(pts[1:]):
-                if (len(idx) < n_pts) or banned[iii] or filled[iii]:
-                    continue
-
-                yy = np.round(abc[0, 0] * pt * pt + abc[1, 0] * pt + abc[2, 0]).astype(int)
-                xx = np.round(abc[0, 1] * pt * pt + abc[1, 1] * pt + abc[2, 1]).astype(int)
-
-                _yy = np.round(abc[0, 0] * pts[k] * pts[k] + abc[1, 0] * pts[k] + abc[2, 0]).astype(int)
-                _xx = np.round(abc[0, 1] * pts[k] * pts[k] + abc[1, 1] * pts[k] + abc[2, 1]).astype(int)
-
-                if (yy == _yy) and (xx == _xx):
-                    continue
-                if yy < 0 or xx < 0:
-                    banned[iii] = 1
-                    continue
-                if yy >= self.m or xx >= self.n:
-                    banned[iii] = 1
-                    continue
-                if _er[yy, xx] == 1:
-                    filled[iii] = 1
-                _res[yy, xx] = 1
-            if filled[iii] or 1:
-                res += _res
-
-        pts = np.arange(0, gap, _gap)
         ress = np.zeros_like(self.er)
         banned = np.zeros((len(self.ind_end), 1))
         filled = np.zeros((len(self.ind_end), 1))
         _er = self.er - cut_lbl
 
+        lim_prolong = round(self.wid_er * 2)
         for iii, idx in enumerate(self.ind_end):
             _lbl = cut_lbl[list(zip(idx[0]))]
             _end = np.where(cut_lbl == _lbl)
+            _norm = np.sqrt((_end[0] - idx[0][0])**2 + (_end[1] - idx[0][1])**2)
+            _as = np.argsort(_norm)
             n_pts = len(_end[0])
             _D = np.arange(n_pts)
             D = np.array([_D * _D, _D, np.ones_like(_D)]).T
             _res = np.zeros_like(self.er)
-            b = np.array(_end).T
+            b = np.take_along_axis(np.array(_end).T, np.stack((_as, _as), axis=1), axis=0)
             abc = np.linalg.lstsq(D, b, rcond=None)[0]
-            abc[-1, :] = idx[0]
+            # abc[-1, :] = idx[0]
+            _l = 0
             for k, pt in enumerate(pts[1:]):
                 yy = np.round(abc[0, 0] * pt * pt + abc[1, 0] * pt + abc[2, 0]).astype(int)
                 xx = np.round(abc[0, 1] * pt * pt + abc[1, 1] * pt + abc[2, 1]).astype(int)
@@ -274,15 +208,19 @@ class CurveProlong():
                 if yy >= self.m or xx >= self.n:
                     banned[iii] = 1
                     continue
+                if cut_end[yy, xx]:
+                    continue
                 if _er[yy, xx] == 1:
                     filled[iii] = 1
-                _res[yy, xx] = 1
-            if filled[iii] or 1:
-                ress += _res
+                if _l <= lim_prolong:
+                    _res[yy, xx] = 1
+                    _l += 1
+            if filled[iii]:
+                res += _res
+            ress += _res
 
         if np.abs(res).sum() > 0:
-            dil_ker = np.ones((2*round(self.wid_er)+1, 2*round(self.wid_er)+1))
-            dil_res = cv2.dilate(res, dil_ker, iterations=1)
+            dil_res = cv2.filter2D(res, -1, self._ker(self.wid_er / 2)) > .1
             self.er = np.where(self.er < .5, dil_res, self.er)
             
     def measureWidth(self):
@@ -352,20 +290,25 @@ class CurveProlong():
         for lbl_i in range(1, np.max(lbl) + 1):
             idx_i = np.where(lbl == lbl_i)
             num_i = len(idx_i[0])
+            max_x, min_x = np.max(idx_i[1]), np.min(idx_i[1])
+            max_y, min_y = np.max(idx_i[0]), np.min(idx_i[0])
+            min_wid = np.minimum(np.abs(max_x - min_x) + 1, np.abs(max_y - min_y) + 1)
             if num_i < del_tol:
+                self.er[idx_i] = 1
+            elif (num_i < del_tol * 10) and min_wid < self.wid_er:
                 self.er[idx_i] = 1
 
     def skeletonize(self):
         '''
         skeletonization of edge region
         '''
-        rein = Reinitial()
-        self.psi = rein.getSDF(.5 - self.er)
-        gx, gy = self.imgrad(self.psi)
-        ng = np.sqrt(gx ** 2 + gy ** 2)
+        # rein = Reinitial()
+        # self.psi = rein.getSDF(.5 - self.er)
+        # gx, gy = self.imgrad(self.psi)
+        # ng = np.sqrt(gx ** 2 + gy ** 2)
         
-        self.sk_phi = np.where((ng < .85) * (self.er > .5), 1., 0.)
-        self.sk = skeletonize(self.sk_phi)
+        # self.sk_phi = np.where((ng < .85) * (self.er > .5), 1., 0.)
+        # self.sk = skeletonize(self.sk_phi)
         self.sk = skeletonize(self.er)
 
     def endPoints(self):
@@ -407,6 +350,9 @@ class CurveProlong():
             self.ind_end.remove(ld)
 
     def dilCurve(self):
+        rein = Reinitial()
+        self.psi = rein.getSDF(.5 - self.er)
+
         _gap = 1 / self.gap / 5
         pts = np.arange(0, -self.gap, -_gap)
         self.new_er = np.zeros_like(self.er)

@@ -58,7 +58,7 @@ if __name__=='__main__':
 
     imgs = args.imgs if args.imgs else [0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 20, 21]
     # imgs = args.imgs if args.imgs else [12, 13, 14, 16, 17, 18, 20, 21]
-    imgs = args.imgs if args.imgs else [1]
+    imgs = args.imgs if args.imgs else [0]
 
     today = time.strftime("%y%m%d", time.localtime(time.time()))
     # label_test = '1'
@@ -122,11 +122,11 @@ if __name__=='__main__':
             _dt['er'] = CD.er
             _dt['edge_er'] = CD.edge_er
             _dt['repaired_sk'] = CD.sk
-            saveFile(_dt, path_img)
+            mts.saveFile(_dt, path_img)
             plt.close('all')
 
         if args.seg_lvset:
-            _dt = loadFile(path_img)
+            _dt = mts.loadFile(path_img)
             seg_er = cv2.dilate(_dt['repaired_sk'].astype(float), np.ones((3, 3)), -1, iterations=1)
             mgn = 2
             edge_er = np.ones_like(seg_er)
@@ -170,7 +170,7 @@ if __name__=='__main__':
                     # new_phis[..., 0] = np.where(temp, -1., new_phis[..., 0])
                     # new_phis[..., 0] = np.where(seg_er, -1., new_phis[..., 0])
                     _dt['phi'] = new_phis
-                    saveFile(_dt, path_img)
+                    mts.saveFile(_dt, path_img)
                     break
 
                 if _reinit:
@@ -185,7 +185,7 @@ if __name__=='__main__':
             plt.close('all')
 
         if args.post_seg:
-            _dt = loadFile(path_img)
+            _dt = mts.loadFile(path_img)
             print(f'\rimage {ni}, post processing...')
             postProc = PostProc(_dt, dir_resimg)
 
