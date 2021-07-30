@@ -37,7 +37,7 @@ class CurveProlong():
         self.wid_er = self.measureWidth()
         self.removeHoles()
         self.removeShorts()
-        self.preSet()
+        self.preSet() 
         self.wid_er = self.measureWidth()
 
         self.sts.imshows([self.img, self.sk], 'skel0.png', [None, self.cma.name], alphas=[None, None])
