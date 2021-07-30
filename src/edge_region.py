@@ -32,7 +32,8 @@ class EdgeRegion():
         dir_ld = f"{dir_network}{self.config['DEFAULT']['dir_stdict']}"
         self.config.read(os.path.join(dir_ld, 'info_train.ini'))
         
-        if args.device: self.config['TRAIN'].update({'decvice': args.device[0], 'device_ids': args.device[1]})
+        if args.device: 
+            self.config['TRAIN'].update({'decvice': args.device[0], 'device_ids': args.device[1]})
 
         # set main device and devices
         cfg_train = self.config['TRAIN']

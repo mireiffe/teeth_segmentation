@@ -14,7 +14,7 @@ class CurveProlong():
     cma = mts.ColorMapAlpha(plt)
     num_pts = 10
 
-    def __init__(self, er, img, dir_save):
+    def __init__(self, img, er, dir_save):
         self.er0 = np.copy(er)
         self.er = np.ones_like(er)
         self.er[2:-2, 2:-2] = self.er0[2:-2, 2:-2]
