@@ -18,7 +18,7 @@
                 "--repair_er",
                 // "--seg_lvset",
                 // "--img", "-3",
-                "--device", "cuda", "1",
+                "--device", "cuda", "0",
                 "--cfg", "cfg/inference.ini"
             ]
         }

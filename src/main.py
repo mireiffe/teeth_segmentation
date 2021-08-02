@@ -71,9 +71,9 @@ class TeethSeg():
 
         print(f"Edge region: {self.path_img} is saved!!")
         
-        sts.imshow(input, 'img.png')
-        sts.imshow(output, 'output.png', cmap='gray')
-        sts.imshow(np.where(output > .5, 1., 0.), 'net_er.png', cmap='gray')
+        self.sts.imshow(input, 'img.png')
+        self.sts.imshow(output, 'output.png', cmap='gray')
+        self.sts.imshow(np.where(output > .5, 1., 0.), 'net_er.png', cmap='gray')
 
     def repair_er(self):
         _dt = mts.loadFile(path_img)
@@ -109,69 +109,69 @@ class TeethSeg():
         mts.saveFile(_dt, path_img)
         plt.close('all')
 
-        if args.seg_lvset:
-            _dt = mts.loadFile(path_img)
-            seg_er = cv2.dilate(_dt['repaired_sk'].astype(float), np.ones((3, 3)), -1, iterations=1)
-            mgn = 2
-            edge_er = np.ones_like(seg_er)
-            edge_er[mgn:-mgn, mgn:-mgn] = seg_er[mgn:-mgn, mgn:-mgn]
-            temp = edge_er - seg_er
-            seg_er = edge_er
+    def seg_lvset(self):
+        _dt = mts.loadFile(path_img)
+        seg_er = cv2.dilate(_dt['repaired_sk'].astype(float), np.ones((3, 3)), -1, iterations=1)
+        mgn = 2
+        edge_er = np.ones_like(seg_er)
+        edge_er[mgn:-mgn, mgn:-mgn] = seg_er[mgn:-mgn, mgn:-mgn]
+        temp = edge_er - seg_er
+        seg_er = edge_er
 
-            bln = Balloon(seg_er, wid=5, radii='auto', dt=0.05)
-            phis = bln.phis0
+        bln = Balloon(seg_er, wid=5, radii='auto', dt=0.05)
+        phis = bln.phis0
 
-            _dt.update({'seg_er': seg_er, 'phi0': phis})
-            # _dt.update({'seg_er': seg_er - temp, 'phi0': phis})
+        _dt.update({'seg_er': seg_er, 'phi0': phis})
+        # _dt.update({'seg_er': seg_er - temp, 'phi0': phis})
 
-            fig, ax = bln.setFigure(phis)
-            mng = plt.get_current_fig_manager()
-            mng.window.showMaximized()
+        fig, ax = bln.setFigure(phis)
+        mng = plt.get_current_fig_manager()
+        mng.window.showMaximized()
+        
+        tol = 0.01
+        _k = 0
+        max_iter = 500
+        _visterm = 10
+        while True:
+            _vis = _k % _visterm == 0 if VISIBLE else _k % _visterm == -1
+            _save = _k % 3 == 3
+            _k += 1
+            _reinit = _k % 10 == 0
+
+            new_phis = bln.update(phis)
+            print(f"\rimage {ni}, iteration: {_k}", end='')
+
+            if (_k == 1) or (_k > max_iter):
+                bln.drawContours(_k, phis, ax)
+                plt.savefig(join(dir_save, f"test{_k:05d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+            if _save or _vis:
+                bln.drawContours(_k, phis, ax)
+                # _save: plt.savefig(join(dir_resimg, f"test{_k:05d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+                if _vis: plt.pause(.1)
             
-            tol = 0.01
-            _k = 0
-            max_iter = 500
-            _visterm = 10
-            while True:
-                _vis = _k % _visterm == 0 if VISIBLE else _k % _visterm == -1
-                _save = _k % 3 == 3
-                _k += 1
-                _reinit = _k % 10 == 0
+            err = np.abs(new_phis - phis).sum() / np.ones_like(phis).sum()
+            if (err < tol) or _k > max_iter:
+                # new_phis[..., 0] = np.where(temp, -1., new_phis[..., 0])
+                # new_phis[..., 0] = np.where(seg_er, -1., new_phis[..., 0])
+                _dt['phi'] = new_phis
+                mts.saveFile(_dt, path_img)
+                break
 
-                new_phis = bln.update(phis)
-                print(f"\rimage {ni}, iteration: {_k}", end='')
+            if _reinit:
+                new_phis = np.where(new_phis < 0, -1., 1.)
+                new_phis = bln.reinit.getSDF(new_phis)
+            phis = new_phis
+        seg_res = np.where(phis < 0, 1., 0.)
+        lbl = label(seg_res, background=0, connectivity=1)
+        plt.figure()
+        plt.imshow(lbl)
+        plt.savefig(f'{dir_save}lbl0.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+        plt.close('all')
 
-                if (_k == 1) or (_k > max_iter):
-                    bln.drawContours(_k, phis, ax)
-                    plt.savefig(join(dir_save, f"test{_k:05d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-                if _save or _vis:
-                    bln.drawContours(_k, phis, ax)
-                    # _save: plt.savefig(join(dir_resimg, f"test{_k:05d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-                    if _vis: plt.pause(.1)
-                
-                err = np.abs(new_phis - phis).sum() / np.ones_like(phis).sum()
-                if (err < tol) or _k > max_iter:
-                    # new_phis[..., 0] = np.where(temp, -1., new_phis[..., 0])
-                    # new_phis[..., 0] = np.where(seg_er, -1., new_phis[..., 0])
-                    _dt['phi'] = new_phis
-                    mts.saveFile(_dt, path_img)
-                    break
-
-                if _reinit:
-                    new_phis = np.where(new_phis < 0, -1., 1.)
-                    new_phis = bln.reinit.getSDF(new_phis)
-                phis = new_phis
-            seg_res = np.where(phis < 0, 1., 0.)
-            lbl = label(seg_res, background=0, connectivity=1)
-            plt.figure()
-            plt.imshow(lbl)
-            plt.savefig(f'{dir_save}lbl0.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-            plt.close('all')
-
-        if args.post_seg:
-            _dt = mts.loadFile(path_img)
-            print(f'\rimage {ni}, post processing...')
-            postProc = PostProc(_dt, dir_save)
+    def post_seg(self):
+        _dt = mts.loadFile(path_img)
+        print(f'\rimage {ni}, post processing...')
+        postProc = PostProc(_dt, dir_save)
 
 
 

@@ -275,12 +275,12 @@ class CurveProlong():
 
     def removeShorts(self, param_del=10):
         self.skeletonize()
-        tol = np.sqrt(self.m**2 + self.n**2) / param_del
+        tol_len = np.sqrt(self.m**2 + self.n**2) / param_del
         lbl_sk = label(self.sk, background=0, connectivity=2)
         lbl_er = label(self.er, background=0, connectivity=2)
         for _ls in range(int(lbl_sk.max())):
             ls = _ls + 1
-            if np.sum(lbl_sk == ls) < tol:
+            if np.sum(lbl_sk == ls) < tol_len:
                 idx = np.where(lbl_sk == ls)
                 self.er = np.where(lbl_er == lbl_er[idx[0][0], idx[1][0]], 0., self.er)
 
