@@ -11,63 +11,103 @@ import myTools as mts
 
 
 class CurveProlong():
-    cma = mts.ColorMapAlpha(plt)
+    jet_alpha = mts.ColorMapAlpha(plt).name
     num_pts = 10
 
     def __init__(self, img, er, dir_save):
+        self.img = img
+
         self.er0 = np.copy(er)
         self.er = np.ones_like(er)
         self.er[2:-2, 2:-2] = self.er0[2:-2, 2:-2]
         self.edge_er = self.er - self.er0
+        self.m, self.n = self.er.shape
 
-        self.img = img
         self.dir_save = dir_save
         self.sts = mts.SaveTools(dir_save)
         
-        # make GADF and edge region
-        self.GADF = GADF(self.img)
-        self.fa = self.GADF.Fa
-        self.erfa = self.GADF.Er
-        self.lbl_erfa =  label(self.erfa, background=0, connectivity=1)
+        self.removeHoleNShorts()
+        self.sts.imshow(self.er, 'er_pre.png', cmap='gray')
+        self.sts.imshows([self.img, self.sk], 'skel_pre.png', [None, self.jet_alpha], alphas=[None, None])
 
-        self.m, self.n = self.er.shape
-        self.gap = np.maximum(round(np.round(self.m * self.n / 300 / 300)), 1)
+        self.gap = round(self.wid_er)
         self.maxlen_cv = 2 * (self.gap * (self.num_pts - 1) + self.num_pts)
 
-        self.wid_er = self.measureWidth()
+        self.dilErFa()
+        self.preSet(branch=True)
+        self.sts.imshow(self.er, 'er_dilerfa.png', cmap='gray')
+        self.sts.imshows([self.img, self.sk], 'skel_dilerfa.png', [None, self.jet_alpha], alphas=[None, None])
+
+        self.dilCurve()
+        self.preSet()
+        self.sts.imshow(self.er, 'er.png', cmap='gray')
+        self.sts.imshows([self.img, self.sk], 'skel.png', [None, self.jet_alpha], alphas=[None, None])
+
+    def removeHoleNShorts(self):
+        self.measureWidth()
         self.removeHoles()
         self.removeShorts()
-        self.preSet() 
-        self.wid_er = self.measureWidth()
 
-        self.sts.imshows([self.img, self.sk], 'skel0.png', [None, self.cma.name], alphas=[None, None])
-
-        self.smallGap()
-        self.preSet()
-
-        self.sts.imshow(self.er, 'er_gap.png', cmap='gray')
-        self.sts.imshows([self.img, self.sk], 'skel_gap.png', [None, self.cma.name], alphas=[None, None])
-
-        self.dilErfa()
-
-        self.smallGap()
-        self.skeletonize()
-        self.endPoints()
-        self.findCurves(branch=True)
+    def dilErFa(self):
+        self.preSet(branch=True)
+        self.measureWidth()
         
-        plt.figure()
-        plt.imshow(self.er, 'gray')
-        plt.savefig(f'{self.dir_save}er.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+        # make GADF and edge region
+        _GADF = GADF(self.img)
+        self.erfa = _GADF.Er
+        lbl_erfa =  label(self.erfa, background=0, connectivity=1)
+        
+        lbl_erfa_neter = lbl_erfa * self.er
+        use_erfa = np.zeros_like(lbl_erfa)
+        ctr = 0.3
+        for i in range(int(lbl_erfa.max())):
+            i_r = i + 1
+            ids_r = np.where(lbl_erfa == i_r)
+            sz_r = len(ids_r[0])
+            sz_rer = len(np.where(lbl_erfa_neter == i_r)[0])
 
-        plt.figure()
-        plt.imshow(self.img)
-        plt.imshow(self.sk, 'gray', alpha=.5)
-        plt.savefig(f'{self.dir_save}skel.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+            if sz_rer / sz_r > ctr:
+                use_erfa[ids_r] = 1
 
-    def preSet(self):
+        num_cut = 2 * round(self.wid_er)
+        cut_pix = self.findEndCut(num_cut=num_cut)
+
+        lbl_cuter = label(np.where(cut_pix, 0, self.er), background=0, connectivity=1)
+        cut_lbl = np.zeros_like(lbl_erfa)
+        for ie in self.ind_end:
+            creg = np.where(lbl_cuter == lbl_cuter[list(zip(ie[0]))], 1, 0)
+            if creg.sum() < 5 * self.wid_er * num_cut:
+                cut_lbl += creg * lbl_cuter[list(zip(ie[0]))]
+
+        num_cut2 = 3 * round(self.wid_er)
+        cut_pix2 = self.findEndCut(num_cut=num_cut2)
+
+        lbl_cuter2 = label(np.where(cut_pix2, 0, self.er), background=0, connectivity=1)
+        cut_lbl2 = np.zeros_like(lbl_erfa)
+        for ie in self.ind_end:
+            creg = np.where(lbl_cuter2 == lbl_cuter2[list(zip(ie[0]))], 1, 0)
+            if creg.sum() < 5 * self.wid_er * num_cut:
+                cut_lbl2 += creg * lbl_cuter2[list(zip(ie[0]))]
+
+        er_cut = (cut_lbl > .5) * use_erfa
+        er_end_lbl = label(self.erfa * (1 - cut_pix), background=0, connectivity=1)
+
+        for cl in range(cut_lbl.max()):
+            _cl = cl + 1
+            _reg = (cut_lbl == _cl) * er_cut
+            _lbl = (er_end_lbl * _reg).max()
+            sz_reg = np.sum(_reg)
+            if sz_reg >= num_cut // 2:
+                add_reg = np.where(er_end_lbl == _lbl, 1., 0.)
+                _rad = round(self.wid_er / 2) + 1
+                add_reg = cv2.filter2D(add_reg, -1, self._ker(_rad))
+                if (add_reg * (self.er - (cut_lbl2 > .5))).sum() > 0:
+                    self.er = np.where(add_reg, 1., self.er)
+
+    def preSet(self, branch=False):
         self.skeletonize()
         self.endPoints()
-        self.findCurves()
+        self.findCurves(branch=branch)
 
     def reSet(self, k):
         # self.sk = skeletonize(self.sk)
@@ -85,39 +125,6 @@ class CurveProlong():
         self.skeletonize()
         self.endPoints()
         self.findCurves(branch=True)
-
-    def dilErfa(self):
-        lbl_erfa_er = self.lbl_erfa * self.er
-        use_erfa = np.zeros_like(self.lbl_erfa)
-        ctr = 0.5
-        for i in range(int(self.lbl_erfa.max())):
-            i_r = i + 1
-            ids_r = np.where(self.lbl_erfa == i_r)
-            sz_r = len(ids_r[0])
-            sz_rer = len(np.where(lbl_erfa_er == i_r)[0])
-
-            if sz_rer / sz_r > ctr:
-                use_erfa[ids_r] = 1
-
-        num_cut = 10
-        cut_pix = self.findEndCut(num_cut=num_cut)
-
-        lbl_cuter = label(np.where(cut_pix, 0, self.er), background=0, connectivity=1)
-        cut_lbl = np.zeros_like(self.lbl_erfa)
-        for ie in self.ind_end:
-            cut_lbl = np.where(lbl_cuter == lbl_cuter[list(zip(ie[0]))], lbl_cuter[list(zip(ie[0]))], cut_lbl)
-
-        er_cut = (cut_lbl > .5) * use_erfa
-        er_end_lbl = label(self.erfa * (1 - cut_pix), background=0, connectivity=1)
-        for cl in range(cut_lbl.max()):
-            _cl = cl + 1
-            _reg = (cut_lbl == _cl) * er_cut
-            _lbl = (er_end_lbl * _reg).max()
-            sz_reg = np.sum(_reg)
-            if sz_reg >= num_cut // 2:
-                add_reg = np.where(er_end_lbl == _lbl, 1., 0.)
-                add_reg = cv2.dilate(add_reg, np.ones((3, 3)), iterations=1)
-                self.er = np.where(add_reg, 1., self.er)
 
     def findEndCut(self, num_cut):
         cut_pix = np.zeros_like(self.er)
@@ -171,7 +178,7 @@ class CurveProlong():
         # self.er = _res
 
         _gap = .5
-        pts = np.arange(0, -self.wid_er * 30, -_gap)
+        pts = np.arange(100, -self.wid_er * 30, -_gap)
         # pts = np.arange(-self.wid_er * 30, self.wid_er * 30, _gap)
         res = np.zeros_like(self.er)
         ress = np.zeros_like(self.er)
@@ -246,8 +253,7 @@ class CurveProlong():
         mu = sum(wid_er) / len(sel_idx)
         sig = np.std(wid_er)
         Z_45 = 1.65     # standard normal value for 90 %
-        wid = Z_45 * sig / np.sqrt(tot_len // 10) + mu
-        return wid
+        self.wid_er = Z_45 * sig / np.sqrt(tot_len // 10) + mu
 
     def dilation(self, wid_er, k=0):
         self.dil_ends = np.zeros_like(self.er)
@@ -351,25 +357,61 @@ class CurveProlong():
 
     def dilCurve(self):
         rein = Reinitial()
-        self.psi = rein.getSDF(.5 - self.er)
+        self.psi = rein.getSDF(.5  - self.er)
 
-        _gap = 1 / self.gap / 5
-        pts = np.arange(0, -self.gap, -_gap)
-        self.new_er = np.zeros_like(self.er)
+        reinkapp = ReinKapp(dt=0.1, mu=0.01)
+
+        num_cut = round(5 * self.wid_er)
+        cut_pix = self.findEndCut(num_cut)
+
+        cut_er = np.where(cut_pix, 0, self.er)
+        lbl_cuter = label(cut_er, background=0, connectivity=1)
+        lbl_ender = np.zeros_like(cut_pix)
+        for ie in self.ind_end:
+            creg = np.where(lbl_cuter == lbl_cuter[list(zip(ie[0]))], 1, 0)
+            if creg.sum() < 3 * self.wid_er * num_cut:
+                lbl_ender += creg * lbl_cuter[list(zip(ie[0]))]
+
+        self.psi_end = rein.getSDF(np.where(lbl_ender > .5, -1, 1))
+        _k = 0
+        while True:
+            _k += 1
+            _kapp = self.gaussfilt(reinkapp.kappa(self.psi_end)[0], sig=.5)
+            self.psi_end += 0.01 * _kapp / _kapp.max()
+            if _k % 5 == 0:
+                self.psi_end = rein.getSDF(self.psi_end)
+            if _k > 00:
+                break
+
+        cut_lbl = lbl_ender * (self.psi_end < 0)
+        # cut_lbl = lbl_ender
+
+        _gap = .5
+        pts = np.arange(0, -self.wid_er * 20, -_gap)
+        # pts = np.arange(-self.wid_er * 30, self.wid_er * 30, _gap)
+        res = np.zeros_like(self.er)
+        ress = np.zeros_like(self.er)
         banned = np.zeros((len(self.ind_end), 1))
+        filled = np.zeros((len(self.ind_end), 1))
+        _er = self.er - lbl_ender > .5
         
-        _D = np.arange(self.num_pts)
-        D = np.array([_D * _D, _D, np.ones_like(_D)]).T
-        for k, pt in enumerate(pts[1:]):
-            for iii, idx in enumerate(self.ind_end):
-                if (len(idx) < self.maxlen_cv - 1) or banned[iii]:
+        lim_prolong = round(self.wid_er * 2)
+        for iii, idx in enumerate(self.ind_end):
+            _lbl = lbl_ender[list(zip(idx[0]))]
+            _end = np.where(cut_lbl == _lbl)
+            _norm = np.sqrt((_end[0] - idx[0][0])**2 + (_end[1] - idx[0][1])**2)
+            _as = np.argsort(_norm)
+            n_pts = len(_end[0])
+            _D = np.arange(n_pts)
+            D = np.array([_D * _D, _D, np.ones_like(_D)]).T
+            _res = np.zeros_like(self.er)
+            b = np.take_along_axis(np.array(_end).T, np.stack((_as, _as), axis=1), axis=0)
+            abc = np.linalg.lstsq(D, b, rcond=None)[0]
+            # abc[-1, :] = idx[0]
+            _l = 0
+            for k, pt in enumerate(pts[1:]):
+                if filled[iii] or banned[iii]:
                     continue
-
-                b = np.array(list(zip(*idx[::self.gap + 1]))).T
-                mDb = min(len(b), len(D))
-                abc = np.linalg.lstsq(D[:mDb, :], b[:mDb, :], rcond=None)[0]
-                abc[-1, :] = b[0]
-
                 yy = np.round(abc[0, 0] * pt * pt + abc[1, 0] * pt + abc[2, 0]).astype(int)
                 xx = np.round(abc[0, 1] * pt * pt + abc[1, 1] * pt + abc[2, 1]).astype(int)
 
@@ -378,24 +420,27 @@ class CurveProlong():
 
                 if (yy == _yy) and (xx == _xx):
                     continue
-
+                if yy < 0 or xx < 0:
+                    banned[iii] = 1
+                    continue
                 if yy >= self.m or xx >= self.n:
                     banned[iii] = 1
                     continue
-                if -yy >= self.m or -xx >= self.n:
-                    banned[iii] = 1
-                    continue
-                elif self.psi[_yy, _xx] > self.psi[yy, xx]:
-                # elif _ng[yy, xx] < .75 and _psi[yy, xx] > 0:
-                    banned[iii] = 1
-                    continue
-                # elif ek[yy, xx] > .5 and psi[yy, xx] > 0:
-                #     banned[iii] = 1
-                #     continue
-                self.new_er[yy, xx] = 1
-                    
-            # if np.abs(self.new_er).sum() > 0:
-                # self.sk = np.where(self.new_er + self.sk > .5, 1., 0.)
+                #if (cut_lbl > 0.5)[yy, xx]:
+                #    continue
+                if _er[yy, xx] == 1:
+                    filled[iii] = 1
+                if _l <= lim_prolong:
+                    _res[yy, xx] = 1
+                    _l += 1
+                _res[yy, xx] = 1
+            if filled[iii]:
+                res += _res
+            ress += _res
+
+        self.er = (self.er + cv2.filter2D(res, -1, self._ker(round(self.wid_er / 2)))) > .5
+
+        xxx = 1
                 
     @staticmethod
     def imgrad(img: np.ndarray) -> np.ndarray:
@@ -416,6 +461,90 @@ class CurveProlong():
         Y, X = np.indices([2 * rad + 1, 2 * rad + 1])
         cen_pat = rad
         return np.where((X - cen_pat)**2 + (Y - cen_pat)**2 <= rad**2, 1., 0.)
+
+
+class ReinKapp(Reinitial):
+    def __init__(self, dt:float=0.1, mu:float=0.01, width:float=30, tol:float=1E-02, iter:int=None, dim:int=2, debug=False, fmm=False) -> np.ndarray:
+        super().__init__(dt=dt, width=width, tol=tol, iter=iter, dim=dim, debug=debug, fmm=fmm)
+        self.mu = mu
+
+    def update(self, phi):
+        bd, fd = self.imgrad(phi, self.dim)
+
+        # abs(a) and a+ in the paper
+        bxa, bxp = np.abs(bd[0]), np.maximum(bd[0], 0)
+        # abs(b) and b+ in the paper
+        fxa, fxp = np.abs(fd[0]), np.maximum(fd[0], 0)
+        # abs(c) and c+ in the paper
+        bya, byp = np.abs(bd[1]), np.maximum(bd[1], 0)
+        # abs(d) and d+ in the paper
+        fya, fyp = np.abs(fd[1]), np.maximum(fd[1], 0)
+        if self.dim == 3:
+            bza, bzp = np.abs(bd[2]), np.maximum(bd[2], 0)
+            fza, fzp = np.abs(fd[2]), np.maximum(fd[2], 0)
+
+        b_sgn, f_sgn = (self.sign0 - 1) / 2, (self.sign0 + 1) / 2
+
+        Gx = np.maximum((bxa * b_sgn + bxp) ** 2, (-fxa * f_sgn + fxp) ** 2)
+        Gy = np.maximum((bya * b_sgn + byp) ** 2, (-fya * f_sgn + fyp) ** 2)
+        if self.dim == 2:
+            _G = np.sqrt(Gx + Gy) - 1
+        elif self.dim == 3:
+            Gz = np.maximum((bza * b_sgn + bzp) ** 2, (-fza * f_sgn + fzp) ** 2)
+            _G = np.sqrt(Gx + Gy + Gz) - 1
+        
+        # for numerical stabilities, sign should be updated
+        _sign0 = self.approx_sign(phi)
+        _kapp = self.gaussfilt(self.kappa(phi)[0], sig=1)
+        _phi = phi - self.dt * (_sign0 * _G - self.mu * _kapp)
+        return _phi
+
+    def kappa(self, phis, ksz=1, h=1, mode=0):
+        x, y = self.imgradKapp(phis)
+        if mode == 0:
+            ng = np.sqrt(x**2 + y**2 + self.eps)
+            nx, ny = x / ng, y / ng
+            xx, _ = self.imgradKapp(nx)
+            _, yy = self.imgradKapp(ny)
+            return xx + yy, x, y, ng
+        elif mode == 1:
+            xx, yy, xy = self.imgradKapp(phis, order=2)
+            res_den = xx * y * y - 2 * x * y * xy + yy * x * x
+            res_num = np.power(x ** 2 + y ** 2, 1.5)
+            ng = np.sqrt(x**2 + y**2 + self.eps)        # just for output
+            return res_den / (res_num + self.eps), x, y, ng
+
+    @staticmethod
+    def imgradKapp(img, order=1, h=1) -> np.ndarray:
+        '''
+        central difference
+        '''
+        if order == 1:
+            _x_ = img[:, 2:, ...] - img[:, :-2, ...]
+            x_ = img[:, 1:2, ...] - img[:, :1, ...]
+            _x = img[:, -1:, ...] - img[:, -2:-1, ...]
+
+            _y_ = img[2:, :, ...] - img[:-2, :, ...]
+            y_ = img[1:2, :, ...] - img[:1, :, ...]
+            _y = img[-1:, :, ...] - img[-2:-1, :, ...]
+
+            gx = np.concatenate((x_, _x_, _x), axis=1)
+            gy = np.concatenate((y_, _y_, _y), axis=0)
+            return gx / (2 * h), gy / (2 * h)
+        elif order == 2:
+            _img = np.pad(img, ((1, 1), (1, 1), (0, 0)), mode='symmetric')
+
+            gxx = _img[1:-1, 2:, ...] + _img[1:-1, :-2, ...] - 2 * _img[1:-1, 1:-1, ...]
+            gyy = _img[2:, 1:-1, ...] + _img[:-2, 1:-1, ...] - 2 * _img[1:-1, 1:-1, ...]
+            gxy = _img[2:, 2:, ...] + _img[:-2, :-2, ...] - _img[2:, :-2, ...] - _img[:-2, 2:, ...]
+            return gxx / (h * h), gyy / (h * h), gxy / (4 * h * h)
+
+    @staticmethod
+    def gaussfilt(img, sig=2, ksz=None, bordertype=cv2.BORDER_REFLECT):
+        if ksz is None:
+            ksz = ((2 * np.ceil(2 * sig) + 1).astype(int), (2 * np.ceil(2 * sig) + 1).astype(int))
+        return cv2.GaussianBlur(img, ksz, sig, borderType=bordertype)
+
 
 
 if __name__ == '__main__':
