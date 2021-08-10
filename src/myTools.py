@@ -118,19 +118,18 @@ class SaveTools():
         plt.close(fig)
 
 
-class ColorMapAlpha():
-    def __init__(self, _plt, _cmap='jet', name='jet_alpha') -> None:
-        self.name = name
-        # get colormap
-        ncolors = 256
-        color_array = _plt.get_cmap(_cmap)(range(ncolors))
-        # change alpha values
-        color_array[:,-1] = np.linspace(0.0, 1.0, ncolors)
-        # create a colormap object
-        from matplotlib.colors import LinearSegmentedColormap
-        map_object = LinearSegmentedColormap.from_list(name=self.name, colors=color_array)
-        # register this new colormap with matplotlib
-        _plt.register_cmap(cmap=map_object)
+def colorMapAlpha(_plt, _cmap='jet', name='jet_alpha') -> None:
+    # get colormap
+    ncolors = 256
+    color_array = _plt.get_cmap(_cmap)(range(ncolors))
+    # change alpha values
+    color_array[:,-1] = np.linspace(0.0, 1.0, ncolors)
+    # create a colormap object
+    from matplotlib.colors import LinearSegmentedColormap
+    map_object = LinearSegmentedColormap.from_list(name=name, colors=color_array)
+    # register this new colormap with matplotlib
+    _plt.register_cmap(cmap=map_object)
+    return name
 
 
 if __name__ == '__main__':

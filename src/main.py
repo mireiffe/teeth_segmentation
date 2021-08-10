@@ -82,9 +82,6 @@ class TeethSeg():
 
         CP = CurveProlong(img, net_er, self.dir_save)
 
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-
         _dt['er'] = CP.er
         _dt['edge_er'] = CP.edge_er
         _dt['repaired_sk'] = CP.sk
