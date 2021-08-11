@@ -33,15 +33,50 @@ class CurveProlong():
         self.gap = round(self.wid_er)
         self.maxlen_cv = 2 * (self.gap * (self.num_pts - 1) + self.num_pts)
 
+        self.endPreSet()
         self.dilErFa()
-        self.preSet(branch=True)
         self.sts.imshow(self.er, 'er_dilerfa.png', cmap='gray')
         self.sts.imshows([self.img, self.sk], 'skel_dilerfa.png', [None, self.jet_alpha], alphas=[None, None])
 
-        self.dilCurve()
-        self.preSet()
-        self.sts.imshow(self.er, 'er.png', cmap='gray')
-        self.sts.imshows([self.img, self.sk], 'skel.png', [None, self.jet_alpha], alphas=[None, None])
+        self.dilCurve(dim_poly=2)
+        self.sts.imshow(self.er, 'er_quad.png', cmap='gray')
+        self.sts.imshows([self.img, self.sk], 'skel_quad.png', [None, self.jet_alpha], alphas=[None, None])
+
+        self.dilCurve(dim_poly=1)
+        self.sts.imshow(self.er, 'er_lin.png', cmap='gray')
+        self.sts.imshows([self.img, self.sk], 'skel_lin.png', [None, self.jet_alpha], alphas=[None, None])
+
+    def endPreSet(self):
+        self.skeletonize()
+        self.findEndPoints()
+        self.findCurves(branch=True)
+
+        # 0 if the end point is available, 1 if not.
+        self.flag_end = [1 for ie in self.ind_end]
+
+        Sparam = 2
+        Lparam = 5
+
+        self.num_Scut = Sparam * round(self.wid_er)
+        self.Scut = self.findEndCut(len_cut=self.num_Scut)
+        Scut_er = np.where(self.Scut, 0, self.er)
+        lbl_Scuter = label(Scut_er, background=0, connectivity=1)
+        self.lbl_Send = np.zeros_like(self.er)
+        for i, ie in enumerate(self.ind_end):
+            creg = np.where(lbl_Scuter == lbl_Scuter[list(zip(ie[0]))], 1, 0)
+            if creg.sum() < (3 * self.num_Scut) * self.wid_er:
+                self.lbl_Send += creg * i
+
+        self.num_Lcut = Lparam * round(self.wid_er)
+        self.Lcut = self.findEndCut(len_cut=self.num_Lcut)
+        Lcut_er = np.where(self.Lcut, 0, self.er)
+        lbl_Lcuter = label(Lcut_er, background=0, connectivity=1)
+        self.lbl_Lend = np.zeros_like(self.er)
+        for i, ie in enumerate(self.ind_end):
+            creg = np.where(lbl_Lcuter == lbl_Lcuter[list(zip(ie[0]))], 1, 0)
+            if creg.sum() < (3 * self.num_Lcut) * self.wid_er:
+                self.lbl_Lend += creg * i
+        return 0
 
     def removeHoleNShorts(self):
         self.measureWidth()
@@ -59,25 +94,32 @@ class CurveProlong():
                 idx = np.where(lbl_sk == ls)
                 self.er = np.where(lbl_er == lbl_er[idx[0][0], idx[1][0]], 0., self.er)
 
-    def removeHoles(self, param_sz=100):
-        lbl_bg = label(self.er, background=1, connectivity=1)
+    def removeHoles(self, input=None, param_sz=100):
+        if input is None:
+            _er = self.er
+        else:
+            _er = input
+        lbl_bg = label(_er, background=1, connectivity=1)
         tol_del = self.m * self.n / param_sz**2
         for _l in range(np.max(lbl_bg)):
             l = _l + 1
             ids_l = np.where(lbl_bg == l)
             sz_l = len(ids_l[0])
             if sz_l < tol_del:
-                self.er[ids_l] = 1
+                _er[ids_l] = 1
             elif sz_l < tol_del * 10:
                 r_x, l_x = np.max(ids_l[1]), np.min(ids_l[1])
                 r_y, l_y = np.max(ids_l[0]), np.min(ids_l[0])
                 min_wid = np.minimum(np.abs(r_x - l_x) + 1, np.abs(r_y - l_y) + 1)
                 if min_wid < self.wid_er:
-                    self.er[ids_l] = 1
+                    _er[ids_l] = 1
+        if input is None:
+            self.er = _er
+        else:
+            return _er
+        
                 
     def dilErFa(self):
-        self.preSet(branch=True)
-        
         # make GADF and edge region
         _GADF = GADF(self.img)
         self.erfa = _GADF.Er
@@ -94,47 +136,39 @@ class CurveProlong():
             if sz_rer / sz_r > ctr:
                 use_erfa[ids_r] = 1
 
-        num_cut = 2 * round(self.wid_er)
-        _cut = self.findEndCut(len_cut=num_cut)
-
-        cut_er = np.where(_cut, 0, self.er)
-        lbl_cuter = label(cut_er, background=0, connectivity=1)
-        lbl_end = np.zeros_like(lbl_erfa)
-        for ie in self.ind_end:
-            creg = np.where(lbl_cuter == lbl_cuter[list(zip(ie[0]))], 1, 0)
-            if creg.sum() < 2 * self.wid_er * num_cut:
-                lbl_end += creg * lbl_cuter[list(zip(ie[0]))]
-
-        num_cut2 = 3 * round(self.wid_er)
-        cut_pix2 = self.findEndCut(len_cut=num_cut2)
-
-        lbl_cuter2 = label(np.where(cut_pix2, 0, self.er), background=0, connectivity=1)
-        cut_lbl2 = np.zeros_like(lbl_erfa)
-        for ie in self.ind_end:
-            creg = np.where(lbl_cuter2 == lbl_cuter2[list(zip(ie[0]))], 1, 0)
-            if creg.sum() < 5 * self.wid_er * num_cut:
-                cut_lbl2 += creg * lbl_cuter2[list(zip(ie[0]))]
-
-        lbl_cuterfa = label(self.erfa * (1 - _cut), background=0, connectivity=1)
-        lbl_erfa_erend = lbl_cuterfa * (lbl_end > .5)
-        lbl_end_erfa = np.zeros_like(lbl_cuterfa)
-        for _l in range(lbl_erfa_erend.max()):
+        lbl_cuterfa = label(use_erfa * (1 - self.Scut), background=0, connectivity=1)
+        lbl_erfa_Send = use_erfa * self.lbl_Send
+        lbl_erfa_end = np.zeros_like(lbl_cuterfa)
+        for _l in range(int(lbl_erfa_Send.max())):
             l = _l + 1
-            if l in lbl_erfa_erend:
-                lbl_end_erfa = np.where(lbl_erfa_erend == l, l, lbl_end_erfa)
+            if l in lbl_erfa_Send:
+                ids_l = np.where(lbl_erfa_Send == l)
+                ind_l = np.unique(lbl_cuterfa[ids_l])
+                for il in ind_l:
+                    lbl_erfa_end = np.where(lbl_cuterfa == il, l, lbl_erfa_end)
 
         num_reg = label(self.er, background=1, connectivity=1).max()
-        for _l in range(lbl_end_erfa.max()):
+        for _l in range(lbl_erfa_end.max()):
             l = _l + 1
-            _reg = np.where(lbl_erfa_erend == l)
-            sz_reg = np.sum(_reg)
-            if sz_reg >= num_cut:
-                add_reg = np.where(lbl_end_erfa == l, 1., 0.)
-                _rad = round(self.wid_er / 2)
-                add_reg = cv2.filter2D(add_reg, -1, mts.cker(_rad))
-                add_er = np.where(add_reg, 1., self.er)
-                if num_reg < label(add_er, background=1, connectivity=1).max():
-                    self.er = add_er
+            if (not self.flag_end[l]) or (l not in lbl_erfa_end):
+                continue
+            _regs_end = label(lbl_erfa_end == l, background=0, connectivity=1)
+            _regs_Send = _regs_end * (self.lbl_Send > .5)
+            for _idx_reg in range(_regs_Send.max()):
+                idx_reg = _idx_reg + 1
+                _reg = np.where(_regs_Send == idx_reg)
+                sz_reg = len(_reg[0])
+                if sz_reg >= self.num_Scut / 2:
+                    add_reg = np.where(_regs_end == idx_reg, 1., 0.)
+                    _rad = round(self.wid_er / 2 - 1)
+                    add_reg = cv2.filter2D(add_reg, -1, mts.cker(_rad))
+                    add_er = np.where(add_reg, 1., self.er)
+                    add_er = self.removeHoles(input=add_er)
+                    if num_reg < label(add_er, background=1, connectivity=1).max():
+                        self.er = add_er
+                        num_reg = label(add_er, background=1, connectivity=1).max()
+                        self.flag_end[l] = 0
+        return 0
 
     def preSet(self, branch=False):
         self.skeletonize()
@@ -254,24 +288,9 @@ class CurveProlong():
         for ld in lst_del:
             self.ind_end.remove(ld)
 
-    def dilCurve(self):
+    def dilCurve(self, dim_poly):
         rein = Reinitial()
         self.psi = rein.getSDF(.5  - self.er)
-
-        num_cut = round(5 * self.wid_er)
-        cut_pix = self.findEndCut(num_cut)
-
-        cut_er = np.where(cut_pix, 0, self.er)
-        lbl_cuter = label(cut_er, background=0, connectivity=1)
-        lbl_ender = np.zeros_like(cut_pix)
-        for ie in self.ind_end:
-            creg = np.where(lbl_cuter == lbl_cuter[list(zip(ie[0]))], 1, 0)
-            if creg.sum() < 3 * self.wid_er * num_cut:
-                lbl_ender += creg * lbl_cuter[list(zip(ie[0]))]
-
-        self.psi_end = rein.getSDF(np.where(lbl_ender > .5, -1, 1))
-        cut_lbl = lbl_ender * (self.psi_end < 0)
-        # cut_lbl = lbl_ender
 
         _gap = .5
         pts = np.arange(0, -self.wid_er * 20, -_gap)
@@ -280,55 +299,56 @@ class CurveProlong():
         ress = np.zeros_like(self.er)
         banned = np.zeros((len(self.ind_end), 1))
         filled = np.zeros((len(self.ind_end), 1))
-        _er = self.er - lbl_ender > .5
+        _er = self.er - self.lbl_Lend > .5
         
         lim_prolong = round(self.wid_er * 2)
-        for iii, idx in enumerate(self.ind_end):
-            _lbl = lbl_ender[list(zip(idx[0]))]
-            _end = np.where(cut_lbl == _lbl)
-            _norm = np.sqrt((_end[0] - idx[0][0])**2 + (_end[1] - idx[0][1])**2)
+        for i, ids in enumerate(self.ind_end):
+            if not self.flag_end[i]:
+                continue
+            _end = np.where(self.lbl_Lend == i)
+            _norm = np.sqrt((_end[0] - ids[0][0])**2 + (_end[1] - ids[0][1])**2)
             _as = np.argsort(_norm)
+
             n_pts = len(_end[0])
             _D = np.arange(n_pts)
-            D = np.array([_D * _D, _D, np.ones_like(_D)]).T
+            if dim_poly == 1:
+                D = np.array([_D, np.ones_like(_D)]).T
+            elif dim_poly == 2:
+                D = np.array([_D * _D, _D, np.ones_like(_D)]).T
+
             _res = np.zeros_like(self.er)
             b = np.take_along_axis(np.array(_end).T, np.stack((_as, _as), axis=1), axis=0)
             abc = np.linalg.lstsq(D, b, rcond=None)[0]
-            # abc[-1, :] = idx[0]
             _l = 0
             for k, pt in enumerate(pts[1:]):
-                if filled[iii] or banned[iii]:
+                if filled[i] or banned[i] or (_l > lim_prolong):
                     continue
-                yy = np.round(abc[0, 0] * pt * pt + abc[1, 0] * pt + abc[2, 0]).astype(int)
-                xx = np.round(abc[0, 1] * pt * pt + abc[1, 1] * pt + abc[2, 1]).astype(int)
-
-                _yy = np.round(abc[0, 0] * pts[k] * pts[k] + abc[1, 0] * pts[k] + abc[2, 0]).astype(int)
-                _xx = np.round(abc[0, 1] * pts[k] * pts[k] + abc[1, 1] * pts[k] + abc[2, 1]).astype(int)
-
+                yy, xx, _yy, _xx = 0, 0, 0, 0
+                for kk in range(dim_poly + 1):
+                    yy += abc[-kk-1, 0] * pow(pt, kk)
+                    xx += abc[-kk-1, 1] * pow(pt, kk)
+                    _yy += abc[-kk-1, 0] * pow(pts[k], kk)
+                    _xx += abc[-kk-1, 1] * pow(pts[k], kk)
+                yy = np.round(yy).astype(int)
+                xx = np.round(xx).astype(int)
+                _yy = np.round(_yy).astype(int)
+                _xx = np.round(_xx).astype(int)
+        
                 if (yy == _yy) and (xx == _xx):
                     continue
-                if yy < 0 or xx < 0:
-                    banned[iii] = 1
+                if (yy < 0 or xx < 0) or (yy >= self.m or xx >= self.n):
+                    banned[i] = 1
                     continue
-                if yy >= self.m or xx >= self.n:
-                    banned[iii] = 1
-                    continue
-                #if (cut_lbl > 0.5)[yy, xx]:
-                #    continue
                 if _er[yy, xx] == 1:
-                    filled[iii] = 1
-                if _l <= lim_prolong:
-                    _res[yy, xx] = 1
-                    _l += 1
+                    filled[i] = 1
                 _res[yy, xx] = 1
-            if filled[iii]:
+                _l += 1
+            if filled[i]:
                 res += _res
             ress += _res
-
         self.er = (self.er + cv2.filter2D(res, -1, mts.cker(round(self.wid_er / 2)))) > .5
 
-        xxx = 1
-                
+        return 0
 
 if __name__ == '__main__':
     pass
