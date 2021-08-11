@@ -35,14 +35,17 @@ class CurveProlong():
 
         self.endPreSet()
         self.dilErFa()
+        self.skeletonize()
         self.sts.imshow(self.er, 'er_dilerfa.png', cmap='gray')
         self.sts.imshows([self.img, self.sk], 'skel_dilerfa.png', [None, self.jet_alpha], alphas=[None, None])
 
         self.dilCurve(dim_poly=2)
+        self.skeletonize()
         self.sts.imshow(self.er, 'er_quad.png', cmap='gray')
         self.sts.imshows([self.img, self.sk], 'skel_quad.png', [None, self.jet_alpha], alphas=[None, None])
 
         self.dilCurve(dim_poly=1)
+        self.skeletonize()
         self.sts.imshow(self.er, 'er_lin.png', cmap='gray')
         self.sts.imshows([self.img, self.sk], 'skel_lin.png', [None, self.jet_alpha], alphas=[None, None])
 
@@ -127,7 +130,7 @@ class CurveProlong():
         
         lbl_erfa_neter = lbl_erfa * self.er
         use_erfa = np.zeros_like(lbl_erfa)
-        ctr = 0       # 0 for only touched, 1 for included
+        ctr = 0.2       # 0 for only touched, 1 for included
         for i in range(int(lbl_erfa.max())):
             i_r = i + 1
             ids_r = np.where(lbl_erfa == i_r)
@@ -160,7 +163,7 @@ class CurveProlong():
                 sz_reg = len(_reg[0])
                 if sz_reg >= self.num_Scut / 2:
                     add_reg = np.where(_regs_end == idx_reg, 1., 0.)
-                    _rad = round(self.wid_er / 2 - 1)
+                    _rad = max(round(self.wid_er / 2 - 1), 1)
                     add_reg = cv2.filter2D(add_reg, -1, mts.cker(_rad))
                     add_er = np.where(add_reg, 1., self.er)
                     add_er = self.removeHoles(input=add_er)
@@ -296,12 +299,13 @@ class CurveProlong():
         pts = np.arange(0, -self.wid_er * 20, -_gap)
         # pts = np.arange(-self.wid_er * 30, self.wid_er * 30, _gap)
         res = np.zeros_like(self.er)
-        ress = np.zeros_like(self.er)
+        debug_res = np.zeros_like(self.er)
         banned = np.zeros((len(self.ind_end), 1))
         filled = np.zeros((len(self.ind_end), 1))
         _er = self.er - self.lbl_Lend > .5
         
-        lim_prolong = round(self.wid_er * 2)
+        lim_prolong = round(self.wid_er * 3)
+        num_reg = label(self.er, background=1, connectivity=1).max()
         for i, ids in enumerate(self.ind_end):
             if not self.flag_end[i]:
                 continue
@@ -320,6 +324,7 @@ class CurveProlong():
             b = np.take_along_axis(np.array(_end).T, np.stack((_as, _as), axis=1), axis=0)
             abc = np.linalg.lstsq(D, b, rcond=None)[0]
             _l = 0
+
             for k, pt in enumerate(pts[1:]):
                 if filled[i] or banned[i] or (_l > lim_prolong):
                     continue
@@ -343,11 +348,19 @@ class CurveProlong():
                     filled[i] = 1
                 _res[yy, xx] = 1
                 _l += 1
-            if filled[i]:
-                res += _res
-            ress += _res
-        self.er = (self.er + cv2.filter2D(res, -1, mts.cker(round(self.wid_er / 2)))) > .5
 
+                debug_res = np.where(_res, 1., debug_res)
+                
+                _rad = max(round(self.wid_er / 2), 1)
+                add_reg = cv2.filter2D(_res, -1, mts.cker(_rad))
+                add_er = np.where(add_reg, 1., self.er)
+                add_er = self.removeHoles(input=add_er)
+                if num_reg < label(add_er, background=1, connectivity=1).max():
+                    res += _res
+                    self.er = add_er
+                    num_reg = label(add_er, background=1, connectivity=1).max()
+                    banned[i] = 1
+                    self.flag_end[i] = 0
         return 0
 
 if __name__ == '__main__':
