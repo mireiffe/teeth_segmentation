@@ -13,9 +13,12 @@ from sklearn.cluster import KMeans
 from gadf import GADF
 from reinitial import Reinitial
 
+import myTools as mts
+
 
 class PostProc():
     eps = np.finfo(float).eps
+    jet_alpha = mts.colorMapAlpha(plt)
     
     def __init__(self, dict, dir_img) -> None:
         self.dir_img = dir_img
@@ -46,9 +49,23 @@ class PostProc():
 
         plt.figure()
         plt.imshow(self.er, 'gray')
-        plt.imshow(temp, 'rainbow_alpha')
+        plt.imshow(temp, self.jet_alpha)
         plt.show()
 
+        import time
+
+        st = time.time()
+        ker = mts.cker(10)
+        kk = np.zeros_like(self.er)
+        kk[139 - 10:139 + 11, 296 - 10:296 + 11] = ker
+        ki = (self.img.transpose((2, 0, 1)) * kk).transpose((1, 2, 0))
+
+        mu = ki.sum() / ker.sum()
+        mu2 = (ki**2).sum() / ker.sum()
+        var = mu2 - mu**2
+        sig = np.sqrt(var)
+        et = time.time()
+        print(et - st)
 
         self.lbl0 = self.labeling()
         self.soaking()

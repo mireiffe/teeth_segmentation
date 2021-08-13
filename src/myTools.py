@@ -65,12 +65,13 @@ def imgrad(v:np.ndarray, dim:int=2, order=1, method='central'):
                 d.append(np.concatenate((_z, _d[i]), axis=i))
             elif method in {'central'}:
                 d.append(np.concatenate((_z, _d[i], _z), axis=i))
+        return d
     elif order == 2:
         _v = np.pad(v, ((1, 1), (1, 1), (0, 0)), mode='symmetric')
         dxx = _v[1:-1, 2:, ...] + _v[1:-1, :-2, ...] - 2 * _v[1:-1, 1:-1, ...]
         dyy = _v[2:, 1:-1, ...] + _v[:-2, 1:-1, ...] - 2 * _v[1:-1, 1:-1, ...]
         dxy = _v[2:, 2:, ...] + _v[:-2, :-2, ...] - _v[2:, :-2, ...] - _v[:-2, 2:, ...]
-    return dyy, dxx, dxy
+        return dyy, dxx, dxy
 
 def gaussfilt(img, sig=2, ksz=None, bordertype=cv2.BORDER_REFLECT):
     if ksz is None:

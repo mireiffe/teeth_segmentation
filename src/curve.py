@@ -150,7 +150,6 @@ class CurveProlong():
                 for il in ind_l:
                     lbl_erfa_end = np.where(lbl_cuterfa == il, l, lbl_erfa_end)
 
-        num_reg = label(self.er, background=1, connectivity=1).max()
         for _l in range(lbl_erfa_end.max()):
             l = _l + 1
             if (not self.flag_end[l]) or (l not in lbl_erfa_end):
@@ -165,11 +164,9 @@ class CurveProlong():
                     add_reg = np.where(_regs_end == idx_reg, 1., 0.)
                     _rad = max(round(self.wid_er / 2 - 1), 1)
                     add_reg = cv2.filter2D(add_reg, -1, mts.cker(_rad))
-                    add_er = np.where(add_reg, 1., self.er)
-                    add_er = self.removeHoles(input=add_er)
-                    if num_reg < label(add_er, background=1, connectivity=1).max():
-                        self.er = add_er
-                        num_reg = label(add_er, background=1, connectivity=1).max()
+                    _touch = add_reg * np.where(self.lbl_Lend, 0, self.er)
+                    if _touch.sum() > 0:
+                        self.er = np.where(add_reg, 1, self.er)
                         self.flag_end[l] = 0
         return 0
 
@@ -304,7 +301,7 @@ class CurveProlong():
         filled = np.zeros((len(self.ind_end), 1))
         _er = self.er - self.lbl_Lend > .5
         
-        lim_prolong = round(self.wid_er * 3)
+        lim_prolong = round(self.wid_er * 10)
         num_reg = label(self.er, background=1, connectivity=1).max()
         for i, ids in enumerate(self.ind_end):
             if not self.flag_end[i]:
@@ -353,12 +350,10 @@ class CurveProlong():
                 
                 _rad = max(round(self.wid_er / 2), 1)
                 add_reg = cv2.filter2D(_res, -1, mts.cker(_rad))
-                add_er = np.where(add_reg, 1., self.er)
-                add_er = self.removeHoles(input=add_er)
-                if num_reg < label(add_er, background=1, connectivity=1).max():
+                _touch = add_reg * np.where(self.lbl_Lend, 0, self.er)
+                if _touch.sum() > 0:
                     res += _res
-                    self.er = add_er
-                    num_reg = label(add_er, background=1, connectivity=1).max()
+                    self.er = np.where(add_reg, 1, self.er)
                     banned[i] = 1
                     self.flag_end[i] = 0
         return 0

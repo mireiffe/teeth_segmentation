@@ -11,11 +11,11 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "args": [
-                // "--post_seg",
+                "--post_seg",
                 // "--ALL",
-                "--make_er",
+                // "--make_er",
                 "--repair_er",
-                // "--seg_lvset",
+                "--seg_lvset",
                 // "--img", "-3",
                 "--device", "cuda", "1",
                 "--cfg", "cfg/inference.ini"
