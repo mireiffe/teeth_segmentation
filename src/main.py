@@ -91,6 +91,7 @@ class TeethSeg():
     def seg_lvset(self):
         _dt = mts.loadFile(self.path_img)
         seg_er = cv2.dilate(_dt['repaired_sk'].astype(float), np.ones((3, 3)), -1, iterations=1)
+        # seg_er = _dt['er']
         mgn = 2
         edge_er = np.ones_like(seg_er)
         edge_er[mgn:-mgn, mgn:-mgn] = seg_er[mgn:-mgn, mgn:-mgn]
@@ -163,8 +164,8 @@ if __name__=='__main__':
         args.post_seg = True
 
     imgs = args.imgs if args.imgs else [0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 20, 21]
-    # imgs = args.imgs if args.imgs else [12, 13, 14, 16, 17, 18, 20, 21]
-    imgs = args.imgs if args.imgs else [1]
+    imgs = args.imgs if args.imgs else [13, 14, 16, 17, 18, 20, 21]
+    imgs = args.imgs if args.imgs else [17]
 
     today = time.strftime("%y%m%d", time.localtime(time.time()))
     # label_test = '1'

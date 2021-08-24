@@ -24,7 +24,7 @@ class GADF():
         # res = self.dilation(er2, len=2)
         # res = self.fineEr(er2, iter=2, coeff=4)
 
-        self.Er = er1
+        self.Er = er2
 
     def fineEr(self, er=None, iter=4, coeff=4):
         if er is not None:
