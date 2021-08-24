@@ -319,24 +319,6 @@ class PostProc():
         # self._showSaveMax(self.img, 'res_1.png', face=self.res)
         # self._showSaveMax(self.img, 'res_2.png', face=self.res, contour=self.res)
 
-        # plt.close('all')
-        # plt.figure()
-        # plt.subplot(2, 2, 1)
-        # plt.imshow(self.lbl0)
-        # plt.subplot(2, 2, 2)
-        # plt.imshow(self.tot_lbl)
-        # plt.subplot(2, 2, 3)
-        # plt.imshow(self.res)
-        # plt.subplot(2, 2, 4)
-        # plt.imshow(self.img)
-        # # clrs = ['r', 'g', 'b', 'c', 'm', 'y', 'k'] * 10
-        # clrs = ['r'] * 100
-        # for i in range(int(np.max(self.res))):
-        #     plt.contour(np.where(self.res == i+1, -1., 1.), levels=[0], colors=clrs[i])
-        # plt.savefig(f'{self.dir_img}res_tot.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-        # plt.pause(10)
-
-
     def kappa(self, phis, ksz=1, h=1, mode=0):
         x, y = self.imgrad(phis)
         if mode == 0:

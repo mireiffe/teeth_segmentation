@@ -170,19 +170,6 @@ class CurveProlong():
                         # self.flag_end[l] = 0
         return 0
 
-        plt.figure(); plt.imshow(self.er, 'gray'); plt.imshow(use_er, self.jet_alpha, vmax=2)
-
-        selColor = [102, 204, 51]     # Green
-        unselColor = [255, 204, 0]    # Yellow
-        _er = np.stack([use_erfa * sc for sc in selColor], axis=2) / max(selColor)
-        er = np.stack([self.er for sc in selColor], axis=2)
-        lev = 50 / 30
-        _qimg = np.where(_er, er + lev * _er, er)
-        _qimg = (_qimg - _qimg.min()) / (_qimg.max() - _qimg.min())
-        res = _qimg[50:209, 16:113]
-        plt.imsave('img.png',res)
-        plt.imshow(res)
-
     def preSet(self, branch=False):
         self.skeletonize()
         self.findEndPoints()
