@@ -47,25 +47,25 @@ class PostProc():
             if sz_rer / sz_r > ctr:
                 temp[ids_r] = 1
 
-        plt.figure()
-        plt.imshow(self.er, 'gray')
-        plt.imshow(temp, self.jet_alpha)
-        plt.show()
+        # plt.figure()
+        # plt.imshow(self.er, 'gray')
+        # plt.imshow(temp, self.jet_alpha)
+        # plt.show()
 
-        import time
+        # import time
 
-        st = time.time()
-        ker = mts.cker(10)
-        kk = np.zeros_like(self.er)
-        kk[139 - 10:139 + 11, 296 - 10:296 + 11] = ker
-        ki = (self.img.transpose((2, 0, 1)) * kk).transpose((1, 2, 0))
+        # st = time.time()
+        # ker = mts.cker(10)
+        # kk = np.zeros_like(self.er)
+        # kk[139 - 10:139 + 11, 296 - 10:296 + 11] = ker
+        # ki = (self.img.transpose((2, 0, 1)) * kk).transpose((1, 2, 0))
 
-        mu = ki.sum() / ker.sum()
-        mu2 = (ki**2).sum() / ker.sum()
-        var = mu2 - mu**2
-        sig = np.sqrt(var)
-        et = time.time()
-        print(et - st)
+        # mu = ki.sum() / ker.sum()
+        # mu2 = (ki**2).sum() / ker.sum()
+        # var = mu2 - mu**2
+        # sig = np.sqrt(var)
+        # et = time.time()
+        # print(et - st)
 
         self.lbl0 = self.labeling()
         self.soaking()
@@ -73,24 +73,24 @@ class PostProc():
         self.lbl_fa = self.toGADF(self.lbl)
         self.tot_lbl = self.zeroReg(self.lbl_fa)
 
-        _reg = [self.lbl0 == lb for lb in range(np.max(self.lbl0))]
-        # _r = np.where(_reg[7], self.img.mean(axis=2), -99)
-        # _rr = np.where(_reg[10], self.img.mean(axis=2), -99)
-        _r = np.where(_reg[7], self.img.mean(axis=2), 0)
-        _rr = np.where(_reg[10], self.img.mean(axis=2), 0)
+        # _reg = [self.lbl0 == lb for lb in range(np.max(self.lbl0))]
+        # # _r = np.where(_reg[7], self.img.mean(axis=2), -99)
+        # # _rr = np.where(_reg[10], self.img.mean(axis=2), -99)
+        # _r = np.where(_reg[7], self.img.mean(axis=2), 0)
+        # _rr = np.where(_reg[10], self.img.mean(axis=2), 0)
 
-        _t = cv2.dilate(_r + _rr, np.ones((5, 5)), iterations=1)
-        _tt = cv2.erode(_t, np.ones((5, 5)), iterations=1)
+        # _t = cv2.dilate(_r + _rr, np.ones((5, 5)), iterations=1)
+        # _tt = cv2.erode(_t, np.ones((5, 5)), iterations=1)
 
-        _r = (_tt * (self.lbl0 == 0) > .1) * self.img.mean(axis=2)
-        _r = cv2.dilate(_r, np.ones((5, 5)), iterations=1)
+        # _r = (_tt * (self.lbl0 == 0) > .1) * self.img.mean(axis=2)
+        # _r = cv2.dilate(_r, np.ones((5, 5)), iterations=1)
         
-        plt.figure()
-        plt.subplot(2, 2, 1); plt.imshow(self.img)
-        plt.contour(_r, levels=[0], colors='red')
-        # plt.subplot(2, 2, 3); plt.imshow(self.img)
-        # plt.contour(_rr, levels=[0], colors='red')
-        plt.subplot(2, 2, (2, 4)); plt.hist(_r.reshape((-1, )), range=(0.01, 1), bins=200, histtype='step')
+        # plt.figure()
+        # plt.subplot(2, 2, 1); plt.imshow(self.img)
+        # plt.contour(_r, levels=[0], colors='red')
+        # # plt.subplot(2, 2, 3); plt.imshow(self.img)
+        # # plt.contour(_rr, levels=[0], colors='red')
+        # plt.subplot(2, 2, (2, 4)); plt.hist(_r.reshape((-1, )), range=(0.01, 1), bins=200, histtype='step')
         # plt.subplot(2, 2, (2, 4)); plt.hist(_rr.reshape((-1, )), range=(0, 1), bins=200, histtype='step')
 
         # self.distSize()

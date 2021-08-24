@@ -66,9 +66,9 @@ class CurveProlong():
         lbl_Scuter = label(Scut_er, background=0, connectivity=1)
         self.lbl_Send = np.zeros_like(self.er)
         for i, ie in enumerate(self.ind_end):
-            creg = np.where(lbl_Scuter == lbl_Scuter[list(zip(ie[0]))], 1, 0)
+            creg = np.where(lbl_Scuter == lbl_Scuter[tuple(zip(ie[0]))], 1, 0)
             if creg.sum() < (3 * self.num_Scut) * self.wid_er:
-                self.lbl_Send += creg * i
+                self.lbl_Send = np.where(creg, i, self.lbl_Send)
 
         self.num_Lcut = Lparam * round(self.wid_er)
         self.Lcut = self.findEndCut(len_cut=self.num_Lcut)
@@ -76,9 +76,9 @@ class CurveProlong():
         lbl_Lcuter = label(Lcut_er, background=0, connectivity=1)
         self.lbl_Lend = np.zeros_like(self.er)
         for i, ie in enumerate(self.ind_end):
-            creg = np.where(lbl_Lcuter == lbl_Lcuter[list(zip(ie[0]))], 1, 0)
+            creg = np.where(lbl_Lcuter == lbl_Lcuter[tuple(zip(ie[0]))], 1, 0)
             if creg.sum() < (3 * self.num_Lcut) * self.wid_er:
-                self.lbl_Lend += creg * i
+                self.lbl_Lend = np.where(creg, i, self.lbl_Lend)
         return 0
 
     def removeHoleNShorts(self):
@@ -167,8 +167,21 @@ class CurveProlong():
                     _touch = add_reg * np.where(self.lbl_Lend, 0, self.er)
                     if _touch.sum() > 0:
                         self.er = np.where(add_reg, 1, self.er)
-                        self.flag_end[l] = 0
+                        # self.flag_end[l] = 0
         return 0
+
+        plt.figure(); plt.imshow(self.er, 'gray'); plt.imshow(use_er, self.jet_alpha, vmax=2)
+
+        selColor = [102, 204, 51]     # Green
+        unselColor = [255, 204, 0]    # Yellow
+        _er = np.stack([use_erfa * sc for sc in selColor], axis=2) / max(selColor)
+        er = np.stack([self.er for sc in selColor], axis=2)
+        lev = 50 / 30
+        _qimg = np.where(_er, er + lev * _er, er)
+        _qimg = (_qimg - _qimg.min()) / (_qimg.max() - _qimg.min())
+        res = _qimg[50:209, 16:113]
+        plt.imsave('img.png',res)
+        plt.imshow(res)
 
     def preSet(self, branch=False):
         self.skeletonize()
@@ -183,7 +196,8 @@ class CurveProlong():
             # Find tangent at the cut point
             T = np.array(ie[nc]) - np.array(ie[nc - 2])
             nT = np.sqrt(np.sum(T**2))
-            T = T / nT
+            # T = T / (nT + mts.eps)
+            T = T / (nT)
             
             Np = np.array([T[1], -T[0]])
             Nn = np.array([-T[1], T[0]])
@@ -293,15 +307,19 @@ class CurveProlong():
         self.psi = rein.getSDF(.5  - self.er)
 
         _gap = .5
-        pts = np.arange(0, -self.wid_er * 20, -_gap)
+        pts = np.arange(0, -self.wid_er * 100, -_gap)
         # pts = np.arange(-self.wid_er * 30, self.wid_er * 30, _gap)
         res = np.zeros_like(self.er)
         debug_res = np.zeros_like(self.er)
         banned = np.zeros((len(self.ind_end), 1))
         filled = np.zeros((len(self.ind_end), 1))
-        _er = self.er - self.lbl_Lend > .5
+        _er = self.er - self.lbl_Send > .5
         
-        lim_prolong = round(self.wid_er * 10)
+        if dim_poly == 2:
+            lim_prolong = round(self.wid_er * 10)
+        elif dim_poly == 1:
+            lim_prolong = round(self.wid_er * 5)
+
         num_reg = label(self.er, background=1, connectivity=1).max()
         for i, ids in enumerate(self.ind_end):
             if not self.flag_end[i]:
@@ -322,6 +340,7 @@ class CurveProlong():
             abc = np.linalg.lstsq(D, b, rcond=None)[0]
             _l = 0
 
+            _flg = 0
             for k, pt in enumerate(pts[1:]):
                 if filled[i] or banned[i] or (_l > lim_prolong):
                     continue
@@ -341,17 +360,18 @@ class CurveProlong():
                 if (yy < 0 or xx < 0) or (yy >= self.m or xx >= self.n):
                     banned[i] = 1
                     continue
-                if _er[yy, xx] == 1:
+                if (self.er[_yy, _xx] - self.er[yy, xx]) == -1:
                     filled[i] = 1
+                    _flg = 1
                 _res[yy, xx] = 1
                 _l += 1
 
                 debug_res = np.where(_res, 1., debug_res)
                 
                 _rad = max(round(self.wid_er / 2), 1)
-                add_reg = cv2.filter2D(_res, -1, mts.cker(_rad))
-                _touch = add_reg * np.where(self.lbl_Lend, 0, self.er)
-                if _touch.sum() > 0:
+                add_reg = cv2.filter2D(_res, -1, mts.cker(_rad)) > 1E-05
+                _touch = add_reg * np.where(self.lbl_Lend == i, 0, self.er)
+                if (_touch.sum() > 0) and ((self.er[_yy, _xx] - self.er[yy, xx]) == -1):
                     res += _res
                     self.er = np.where(add_reg, 1, self.er)
                     banned[i] = 1
