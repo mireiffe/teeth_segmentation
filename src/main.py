@@ -153,6 +153,8 @@ class TeethSeg():
         print(f'\rimage {ni}, post processing...')
         postProc = PostProc(_dt, self.dir_save)
 
+        mts.saveFile(postProc.dict, self.path_img)
+
 
 if __name__=='__main__':
     args = get_args()

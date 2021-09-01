@@ -14,7 +14,7 @@
                 "--post_seg",
                 // "--ALL",
                 // "--make_er",
-                "--repair_er",
+                // "--repair_er",
                 // "--seg_lvset",
                 // "--img", "-3",
                 "--device", "cuda", "1",

@@ -12,6 +12,7 @@ from sklearn.cluster import KMeans
 
 from gadf import GADF
 from reinitial import Reinitial
+from reinst import ThreeRegions
 
 import myTools as mts
 
@@ -22,7 +23,7 @@ class PostProc():
     
     def __init__(self, dict, dir_img) -> None:
         self.dir_img = dir_img
-
+        self.dict = dict
         self.img = dict['img']
         self.seg_er = dict['seg_er']
         self.er = dict['er']
@@ -47,51 +48,11 @@ class PostProc():
             if sz_rer / sz_r > ctr:
                 temp[ids_r] = 1
 
-        # plt.figure()
-        # plt.imshow(self.er, 'gray')
-        # plt.imshow(temp, self.jet_alpha)
-        # plt.show()
-
-        # import time
-
-        # st = time.time()
-        # ker = mts.cker(10)
-        # kk = np.zeros_like(self.er)
-        # kk[139 - 10:139 + 11, 296 - 10:296 + 11] = ker
-        # ki = (self.img.transpose((2, 0, 1)) * kk).transpose((1, 2, 0))
-
-        # mu = ki.sum() / ker.sum()
-        # mu2 = (ki**2).sum() / ker.sum()
-        # var = mu2 - mu**2
-        # sig = np.sqrt(var)
-        # et = time.time()
-        # print(et - st)
-
         self.lbl0 = self.labeling()
         self.soaking()
         self.lbl = self.labeling()
         self.lbl_fa = self.toGADF(self.lbl)
         self.tot_lbl = self.zeroReg(self.lbl_fa)
-
-        # _reg = [self.lbl0 == lb for lb in range(np.max(self.lbl0))]
-        # # _r = np.where(_reg[7], self.img.mean(axis=2), -99)
-        # # _rr = np.where(_reg[10], self.img.mean(axis=2), -99)
-        # _r = np.where(_reg[7], self.img.mean(axis=2), 0)
-        # _rr = np.where(_reg[10], self.img.mean(axis=2), 0)
-
-        # _t = cv2.dilate(_r + _rr, np.ones((5, 5)), iterations=1)
-        # _tt = cv2.erode(_t, np.ones((5, 5)), iterations=1)
-
-        # _r = (_tt * (self.lbl0 == 0) > .1) * self.img.mean(axis=2)
-        # _r = cv2.dilate(_r, np.ones((5, 5)), iterations=1)
-        
-        # plt.figure()
-        # plt.subplot(2, 2, 1); plt.imshow(self.img)
-        # plt.contour(_r, levels=[0], colors='red')
-        # # plt.subplot(2, 2, 3); plt.imshow(self.img)
-        # # plt.contour(_rr, levels=[0], colors='red')
-        # plt.subplot(2, 2, (2, 4)); plt.hist(_r.reshape((-1, )), range=(0.01, 1), bins=200, histtype='step')
-        # plt.subplot(2, 2, (2, 4)); plt.hist(_rr.reshape((-1, )), range=(0, 1), bins=200, histtype='step')
 
         # self.distSize()
         self.res = self.regClass(self.tot_lbl)
@@ -115,6 +76,8 @@ class PostProc():
         Rein = Reinitial(dt=.1, width=5)
         # Rein = Reinitial(dt=.1, width=5, fmm=True)
         _phis = Rein.getSDF(np.transpose(_regs, (1, 2, 0)))
+        n_phis = _phis.shape[-1]
+        teg = [ThreeRegions(self.img) for nph in range(n_phis)]
 
         _k = 0
         while True:
@@ -125,18 +88,20 @@ class PostProc():
             else:
                 pass
 
-
             _dist = 1
             regs = np.where(_phis < _dist, _phis - _dist, 0)
             all_regs = regs.sum(axis=-1)
             _Fo = - (all_regs - regs.transpose((2, 0, 1)))
-            
+
+            for _i in range(n_phis):
+                teg[_i].setting(_phis[..., _i])
+
             gx, gy = self.imgrad(_phis)
             _Fa = - 1 * (gx.transpose((2, 0, 1)) * self.Fa[..., 0] + gy.transpose((2, 0, 1)) * self.Fa[..., 1]) * self.er_Fa * (self.lbl == 0)
-            _Fb = - 1 * (1 - self.er_Fa)
+            _Fb = np.array([- tg.force() * (1 - self.er_Fa) for tg in teg])
 
             kap = self.kappa(_phis)[0] * (np.abs(_phis) < 5)
-            _F = (_Fa + _Fb) * cal_regs + _Fo + mu * kap.transpose((2, 0, 1))
+            _F = mts.gaussfilt(_Fa + _Fb, 1) * cal_regs + _Fo + mu * kap.transpose((2, 0, 1))
             new_phis = _phis + dt * _F.transpose((1, 2, 0))
 
             err = np.abs(new_phis - _phis).sum() / new_phis.size
@@ -318,6 +283,12 @@ class PostProc():
         self._showSaveMax(self.img, 'res_0.png', contour=self.res)
         # self._showSaveMax(self.img, 'res_1.png', face=self.res)
         # self._showSaveMax(self.img, 'res_2.png', face=self.res, contour=self.res)
+
+        self.dict['lbl0'] = self.lbl0
+        self.dict['lbl'] = self.lbl
+        self.dict['er_Fa'] = self.er_Fa
+        self.dict['tot_lbl'] = self.tot_lbl
+        self.dict['res'] = self.res
 
     def kappa(self, phis, ksz=1, h=1, mode=0):
         x, y = self.imgrad(phis)
