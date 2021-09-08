@@ -101,7 +101,7 @@ class PostProc():
             _Fb = np.array([- tg.force() * (1 - self.er_Fa) for tg in teg])
 
             kap = self.kappa(_phis)[0] * (np.abs(_phis) < 5)
-            _F = mts.gaussfilt(_Fa + _Fb, 1) * cal_regs + _Fo + mu * kap.transpose((2, 0, 1))
+            _F = mts.gaussfilt((_Fa + _Fb).transpose((1, 2, 0)), 1).transpose((2, 0, 1)) * cal_regs + _Fo + mu * kap.transpose((2, 0, 1))
             new_phis = _phis + dt * _F.transpose((1, 2, 0))
 
             err = np.abs(new_phis - _phis).sum() / new_phis.size
@@ -289,6 +289,105 @@ class PostProc():
         self.dict['er_Fa'] = self.er_Fa
         self.dict['tot_lbl'] = self.tot_lbl
         self.dict['res'] = self.res
+
+        return
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d') # Axe3D object
+        _img = self.img[::4, ::4, :]
+        r,g,b = _img[..., 0], _img[...,1], _img[..., 2]
+        # _img = np.stack((0*r, 3 * g, 5 * b), axis=2)
+        _tl = self.tot_lbl[::4, ::4]
+
+        _img = np.where(_tl == 1, 0, _img.transpose((2, 0, 1))).transpose((1, 2, 0))
+        _img = np.where(np.sum([_tl == v for v in [10, 18, 21, 22, 23, 9, 11]], axis=0), _img.transpose((2, 0, 1)), 0).transpose((1, 2, 0))
+
+        # _img = np.where(_tl == 16, 0, _img.transpose((2, 0, 1))).transpose((1, 2, 0))
+        # _img = np.where(np.sum([_tl == v for v in [9, 10, 8]], axis=0), _img.transpose((2, 0, 1)), 0).transpose((1, 2, 0))
+
+        ax.scatter(_img[..., 0], _img[..., 1], _img[..., 2], c=_tl-1, s= 20, alpha=0.5, cmap=mts.colorMapAlpha(plt))
+        plt.figure(); plt.imshow(self.tot_lbl, cmap='jet')
+        # plt.figure(); plt.imshow(self.tot_lbl * (1-np.sum([self.tot_lbl == v for v in [1, 16]], axis=0)), cmap='jet')
+
+        from skimage import io, color
+        lab = color.rgb2lab(self.img)
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d') # Axe3D object
+        _lab = lab[::4, ::4, :]
+        # _lab = np.where(_tl == 1, 0, _lab.transpose((2, 0, 1))).transpose((1, 2, 0))
+        # _lab = np.where(np.sum([_tl == v for v in [10, 18, 21, 22, 23, 9, 11]], axis=0), _lab.transpose((2, 0, 1)), 0).transpose((1, 2, 0))
+        
+        _lab = np.where(_tl == 16, 0, _lab.transpose((2, 0, 1))).transpose((1, 2, 0))
+        _lab = np.where(_tl == 1, 0, _lab.transpose((2, 0, 1))).transpose((1, 2, 0))
+        _lab = np.where(np.sum([_tl == v for v in [8, 9, 10, 12, 14]], axis=0), _lab.transpose((2, 0, 1)), 0).transpose((1, 2, 0))
+        ax.scatter(_lab[..., 1], _lab[..., 2], _lab[..., 0], c=_tl-1, s= 20, alpha=0.5, cmap=mts.colorMapAlpha(plt))
+
+        plt.figure()
+        plt.imshow((lab - lab.min()) / (lab - lab.min()).max())
+
+        ## sk color quant test
+
+        from sklearn.cluster import KMeans
+        from sklearn.metrics import pairwise_distances_argmin
+        from sklearn.datasets import load_sample_image
+        from sklearn.utils import shuffle
+        from time import time
+
+        n_colors = 16
+
+        # china = self.img
+        china = (lab - lab.min()) / (lab - lab.min()).max()
+        # Load Image and transform to a 2D numpy array.
+        w, h, d = original_shape = tuple(china.shape)
+        assert d == 3
+        image_array = np.reshape(china, (w * h, d))
+
+        print("Fitting model on a small sub-sample of the data")
+        t0 = time()
+        image_array_sample = shuffle(image_array, random_state=0)[:1000]
+        kmeans = KMeans(n_clusters=n_colors, random_state=0).fit(image_array_sample)
+        print("done in %0.3fs." % (time() - t0))
+
+        # Get labels for all points
+        print("Predicting color indices on the full image (k-means)")
+        t0 = time()
+        labels = kmeans.predict(image_array)
+        print("done in %0.3fs." % (time() - t0))
+
+
+        codebook_random = shuffle(image_array, random_state=0)[:n_colors]
+        print("Predicting color indices on the full image (random)")
+        t0 = time()
+        labels_random = pairwise_distances_argmin(codebook_random,
+                                                image_array,
+                                                axis=0)
+        print("done in %0.3fs." % (time() - t0))
+
+
+        def recreate_image(codebook, labels, w, h):
+            """Recreate the (compressed) image from the code book & labels"""
+            d = codebook.shape[1]
+            image = np.zeros((w, h, d))
+            label_idx = 0
+            for i in range(w):
+                for j in range(h):
+                    image[i][j] = codebook[labels[label_idx]]
+                    label_idx += 1
+            return image
+
+        # Display all results, alongside original image
+        plt.figure(1)
+        plt.clf()
+        plt.axis('off')
+        plt.title('Original image (96,615 colors)')
+        plt.imshow(china)
+
+        plt.figure(2)
+        plt.clf()
+        plt.axis('off')
+        plt.title(f'Quantized image ({n_colors} colors, K-Means)')
+        plt.imshow(recreate_image(kmeans.cluster_centers_, labels, w, h))
+
 
     def kappa(self, phis, ksz=1, h=1, mode=0):
         x, y = self.imgrad(phis)
