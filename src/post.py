@@ -36,24 +36,16 @@ class PostProc():
 
         self.lbl_er =  label(self.er_Fa, background=0, connectivity=1)
 
-        _lbl_er = self.lbl_er * self.er
-        temp = np.zeros_like(self.lbl_er)
-        ctr = 0
-        for i in range(int(self.lbl_er.max())):
-            i_r = i + 1
-            ids_r = np.where(self.lbl_er == i_r)
-            sz_r = len(ids_r[0])
-            sz_rer = len(np.where(_lbl_er == i_r)[0])
-
-            if sz_rer / sz_r > ctr:
-                temp[ids_r] = 1
-
-        self.lbl0 = self.labeling()
-        self.soaking()
-        self.lbl = self.labeling()
-        self.lbl_fa = self.toGADF(self.lbl)
-        self.tot_lbl = self.zeroReg(self.lbl_fa)
-
+        if 'tot_lbl' in self.dict.keys():
+            self.lbl0 = self.dict['lbl0']
+            self.lbl = self.dict['lbl']
+            self.tot_lbl = self.dict['tot_lbl']
+        else:
+            self.lbl0 = self.labeling()
+            self.soaking()
+            self.lbl = self.labeling()
+            self.lbl_fa = self.toGADF(self.lbl)
+            self.tot_lbl = self.zeroReg(self.lbl_fa)
         self.res = self.regClass()
         self._saveSteps()
 
@@ -95,11 +87,11 @@ class PostProc():
             for _i in range(n_phis):
                 teg[_i].setting(_phis[..., _i])
 
-            gx, gy = self.imgrad(_phis)
+            gx, gy = mts.imgrad(_phis)
             _Fa = - 1 * (gx.transpose((2, 0, 1)) * self.Fa[..., 0] + gy.transpose((2, 0, 1)) * self.Fa[..., 1]) * self.er_Fa * (self.lbl == 0)
             _Fb = np.array([- tg.force() * (1 - self.er_Fa) for tg in teg])
 
-            kap = self.kappa(_phis)[0] * (np.abs(_phis) < 5)
+            kap = mts.kappa(_phis)[0] * (np.abs(_phis) < 5)
             _F = mts.gaussfilt((_Fa + _Fb).transpose((1, 2, 0)), 1).transpose((2, 0, 1)) * cal_regs + _Fo + mu * kap.transpose((2, 0, 1))
             new_phis = _phis + dt * _F.transpose((1, 2, 0))
 
@@ -178,26 +170,27 @@ class PostProc():
         return lbl + _lbl
 
     def regClass(self):
-        lbl_kapp = self.regClassByKapp(self.tot_lbl)
-        lbl_res = self.regClassByVLine(lbl_kapp)
+        lbl_kapp = self.regClassKapp(self.tot_lbl)
+        lbl_res = self.candVLine(lbl_kapp)
         return lbl_res
 
     @staticmethod
-    def regClassByKapp(lbl):
-        # Rein = Reinitial(dt=.1, width=4)
+    def regClassKapp(lbl):
+        Rein = Reinitial(dt=.1, width=5)
 
         reg_nkapp = []
         for l in np.unique(lbl):
+            if l < 0: continue
             _reg = np.where(lbl == l, 1., 0.)
             
-            # _phi = Rein.getSDF(_reg)
-            _phi = skfmm.distance(.5 - _reg)
+            # _phi = skfmm.distance(.5 - _reg)
+            _phi = Rein.getSDF(.5 - _reg)
             _kapp = mts.kappa(_phi, mode=0)[0]
-            _kapp = mts.gaussfilt(_kapp, sig=1)
+            _kapp = mts.gaussfilt(_kapp, sig=.5)
 
             reg_cal = np.abs(_phi) < 1.5
-            kapp_p = np.where(_kapp > 1E-04, _kapp, 0)
-            kapp_n = np.where(_kapp < -1E-04, _kapp, 0)
+            kapp_p = np.where(_kapp > 1E-04, 1, 0)
+            kapp_n = np.where(_kapp < -1E-04, 1, 0)
 
             n_kapp_p = (kapp_p * reg_cal).sum()
             n_kapp_n = (kapp_n * reg_cal).sum()
@@ -211,28 +204,54 @@ class PostProc():
         return res
 
     @staticmethod
-    def regClassByVLine(lbl):
+    def candVLine(lbl):
         reg2bchck = []
         thres = .95
         for l in np.unique(lbl):
-            l = 0
+            if l < 0: continue
             _reg = np.where(lbl == l)
-            n_samples = round(len(_reg[0]) / 10.)
+            _x = np.unique(_reg[1])
+            n_samples = round(len(_x) / 2.)
             
             np.random.seed(210501)
-            pts_x = np.random.choice(_reg[1], n_samples, replace=False)
+            samples_x = np.random.choice(_x, n_samples, replace=False)
             flg = 0
-            for pt_x in pts_x:
-                vl_reg = lbl[:, pt_x]
+            for s_x in samples_x:
+                vl_reg = np.setdiff1d(lbl[:, s_x], [-1, ])
                 if len(vl_reg) > 2:
                     flg += 1
             if flg / n_samples > thres:
                 reg2bchck.append(l)
 
-        res = np.copy(lbl)
+        cand = np.copy(lbl)
         for r2c in reg2bchck:
-            res = np.where(lbl == r2c, 0., res)
-        return res
+            cand = np.where(lbl == r2c, -1., cand)
+        return cand
+
+    @staticmethod
+    def regClassVLine(img, lbl, cand):
+        from skimage import color
+        img_lab = color.rgb2lab(img)
+        max_a = np.unravel_index(np.argmax(img_lab[..., 1]), img_lab[..., 1])
+        init_k = [[0, 0, 0], img_lab[max_a[0], max[1], :], [1, 0, 0]]
+
+        
+
+        for l in np.unique(cand):
+            if l < 0: continue
+            _reg = np.where(lbl == l)
+            _x = np.unique(_reg[1])
+            n_samples = round(len(_x) / 2.)
+            
+            np.random.seed(210501)
+            samples_x = np.random.choice(_x, n_samples, replace=False)
+            flg = 0
+            for s_x in samples_x:
+                vl_reg = np.setdiff1d(lbl[:, s_x], [-1, ])
+                if len(vl_reg) > 2:
+                    flg += 1
+            if flg / n_samples > thres:
+                reg2bchck.append(l)
 
     def _showSaveMax(self, obj, name, face=None, contour=None):
         fig = plt.figure()
@@ -270,6 +289,7 @@ class PostProc():
         self.dict['lbl0'] = self.lbl0
         self.dict['lbl'] = self.lbl
         self.dict['er_Fa'] = self.er_Fa
+        self.dict['lbl_fa'] = self.lbl_fa
         self.dict['tot_lbl'] = self.tot_lbl
         self.dict['res'] = self.res
 
