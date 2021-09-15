@@ -279,7 +279,7 @@ class PostProc():
         self.dict['tot_lbl'] = self.tot_lbl
         self.dict['res'] = self.res
 
-        return
+        ## meeting
 
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d') # Axe3D object
@@ -291,14 +291,20 @@ class PostProc():
         _img = np.where(_tl == 1, 0, _img.transpose((2, 0, 1))).transpose((1, 2, 0))
         _img = np.where(np.sum([_tl == v for v in [10, 18, 21, 22, 23, 9, 11]], axis=0), _img.transpose((2, 0, 1)), 0).transpose((1, 2, 0))
 
+        # _img = np.where(_tl == 1, 0, _img.transpose((2, 0, 1))).transpose((1, 2, 0))
         # _img = np.where(_tl == 16, 0, _img.transpose((2, 0, 1))).transpose((1, 2, 0))
         # _img = np.where(np.sum([_tl == v for v in [9, 10, 8]], axis=0), _img.transpose((2, 0, 1)), 0).transpose((1, 2, 0))
 
+        _img = np.where(_tl == 7, 0, _img.transpose((2, 0, 1))).transpose((1, 2, 0))
+        _img = np.where(_tl == 1, 0, _img.transpose((2, 0, 1))).transpose((1, 2, 0))
+        # _img = np.where(np.sum([_tl == v for v in [9, 10, 8]], axis=0), _img.transpose((2, 0, 1)), 0).transpose((1, 2, 0))
+        
         ax.scatter(_img[..., 0], _img[..., 1], _img[..., 2], c=_tl-1, s= 20, alpha=0.5, cmap=mts.colorMapAlpha(plt))
-        plt.figure(); plt.imshow(self.tot_lbl, cmap='jet')
-        # plt.figure(); plt.imshow(self.tot_lbl * (1-np.sum([self.tot_lbl == v for v in [1, 16]], axis=0)), cmap='jet')
+        # plt.figure(); plt.imshow(self.tot_lbl, cmap='jet')
+        plt.figure(); plt.imshow(self.tot_lbl * (1-np.sum([self.tot_lbl == v for v in [7, 1]], axis=0)), cmap='jet')
 
         from skimage import io, color
+        # lab = color.rgb2lab(self.img)
         lab = color.rgb2lab(self.img)
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d') # Axe3D object
@@ -306,9 +312,13 @@ class PostProc():
         # _lab = np.where(_tl == 1, 0, _lab.transpose((2, 0, 1))).transpose((1, 2, 0))
         # _lab = np.where(np.sum([_tl == v for v in [10, 18, 21, 22, 23, 9, 11]], axis=0), _lab.transpose((2, 0, 1)), 0).transpose((1, 2, 0))
         
-        _lab = np.where(_tl == 16, 0, _lab.transpose((2, 0, 1))).transpose((1, 2, 0))
+        # _lab = np.where(_tl == 16, 0, _lab.transpose((2, 0, 1))).transpose((1, 2, 0))
+        # _lab = np.where(_tl == 1, 0, _lab.transpose((2, 0, 1))).transpose((1, 2, 0))
+        # _lab = np.where(np.sum([_tl == v for v in [8, 9, 10, 12, 14]], axis=0), _lab.transpose((2, 0, 1)), 0).transpose((1, 2, 0))
+        
+        _lab = np.where(_tl == 7, 0, _lab.transpose((2, 0, 1))).transpose((1, 2, 0))
         _lab = np.where(_tl == 1, 0, _lab.transpose((2, 0, 1))).transpose((1, 2, 0))
-        _lab = np.where(np.sum([_tl == v for v in [8, 9, 10, 12, 14]], axis=0), _lab.transpose((2, 0, 1)), 0).transpose((1, 2, 0))
+        
         ax.scatter(_lab[..., 1], _lab[..., 2], _lab[..., 0], c=_tl-1, s= 20, alpha=0.5, cmap=mts.colorMapAlpha(plt))
 
         plt.figure()
@@ -325,7 +335,7 @@ class PostProc():
         n_colors = 16
 
         # china = self.img
-        china = (lab - lab.min()) / (lab - lab.min()).max()
+        china = lab
         # Load Image and transform to a 2D numpy array.
         w, h, d = original_shape = tuple(china.shape)
         assert d == 3
@@ -376,6 +386,67 @@ class PostProc():
         plt.axis('off')
         plt.title(f'Quantized image ({n_colors} colors, K-Means)')
         plt.imshow(recreate_image(kmeans.cluster_centers_, labels, w, h))
+
+        __img = np.copy(self.img)
+        for i in range(int(self.tot_lbl.max())):
+            _i = i + 1
+            _reg = np.where(self.tot_lbl == _i, True, False)
+            _mu = np.mean(self.img.transpose((2, 0, 1)), where=_reg)
+            __img = (__img.transpose((2, 0, 1)) - _reg * (_mu - .5)).transpose((1, 2, 0))
+
+        plt.figure()
+        plt.imshow(__img)
+
+        lab = color.rgb2lab(__img)
+        lab = (lab - lab.min()) / (lab - lab.min()).max()
+
+        plt.figure()
+        plt.imshow(lab)
+
+        reg2bchck = []
+        for i in range(int(self.tot_lbl.max())):
+            _i = i + 1
+            _reg = np.where(self.tot_lbl == _i)
+            np.random.seed(210501)
+            pts = np.random.choice(len(_reg[0]), len(_reg[0]) // 10, replace=False)
+            flg = 0
+            for pt in pts:
+                vl_reg = np.setdiff1d(self.tot_lbl[:, _reg[1][pt]], [7, 1, 2, 3, 34, 35])
+                if len(vl_reg) > 2:
+                    flg += 1
+            if flg / len(pts) > .99:
+                reg2bchck.append(_i)
+
+        _sr = np.zeros_like(self.tot_lbl)
+        for rr in reg2bchck:
+            _sr += np.where(self.tot_lbl == rr, 1, 0) * rr
+        plt.figure()
+        plt.imshow(_sr, cmap='jet', vmax=43)
+        
+        vv = 624
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d') # Axe3D object
+
+        # _img = self.img[:, vv, :]
+        # _img = np.where(_sr[:, vv] == 0, 0, _img.transpose((1,0))).transpose((1, 0))
+
+        _img = color.rgb2lab(self.img)[:, vv, :]
+        # _img = color.rgb2lab(self.img)[:, vv, :]
+        _img = np.where(self.tot_lbl[:, vv] == 7, 0, _img.transpose((1,0))).transpose((1, 0))
+        _img = np.where(self.tot_lbl[:, vv] == 1, 0, _img.transpose((1,0))).transpose((1, 0))
+        ax.scatter(_img[..., 1], _img[..., 2], _img[..., 0], c=self.tot_lbl[:, vv], s=20, alpha=1, cmap='jet', vmax=43)
+
+        # for i in range(int(self.tot_lbl.max())):
+        #     _i = i + 1
+        #     _reg = np.where(self.tot_lbl == _i)
+        #     np.random.seed(210501)
+        #     pts = np.random.choice(len(_reg[0]), 10, replace=False)
+        #     for pt in pts:
+        #         vl_pt = self.img.mean(axis=2)[:, _reg[1][pt]]
+
+        #         plt.figure()
+        #         plt.hist(vl_pt)
+
 
 
     def kappa(self, phis, ksz=1, h=1, mode=0):

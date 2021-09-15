@@ -166,7 +166,7 @@ if __name__=='__main__':
 
     imgs = args.imgs if args.imgs else [0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 20, 21]
     imgs = args.imgs if args.imgs else [4, 5, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 20, 21]
-    imgs = args.imgs if args.imgs else [5]
+    imgs = args.imgs if args.imgs else [17]
 
     today = time.strftime("%y%m%d", time.localtime(time.time()))
     # label_test = '1'
