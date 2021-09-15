@@ -54,8 +54,7 @@ class PostProc():
         self.lbl_fa = self.toGADF(self.lbl)
         self.tot_lbl = self.zeroReg(self.lbl_fa)
 
-        # self.distSize()
-        self.res = self.regClass(self.tot_lbl)
+        self.res = self.regClass()
         self._saveSteps()
 
     def toGADF(self, lbl):
@@ -178,67 +177,62 @@ class PostProc():
                     
         return lbl + _lbl
 
-    def regClassByKapp(self, lbl):
-        num_reg = int(lbl.max())
+    def regClass(self):
+        lbl_kapp = self.regClassByKapp(self.tot_lbl)
+        lbl_res = self.regClassByVLine(lbl_kapp)
+        return lbl_res
 
-        indic_kapp = {}
-        for ir in range(num_reg):
-            if (ir + 1) not in lbl:
-                continue
-            _reg = np.where(lbl == (ir+1), -1., 1.)
+    @staticmethod
+    def regClassByKapp(lbl):
+        # Rein = Reinitial(dt=.1, width=4)
+
+        reg_nkapp = []
+        for l in np.unique(lbl):
+            _reg = np.where(lbl == l, 1., 0.)
+            
             # _phi = Rein.getSDF(_reg)
-            _phi = skfmm.distance(_reg)
-            _kapp = self.kappa(_phi, mode=0)[0]
-            _kapp = self.gaussfilt(_kapp, sig=2)
+            _phi = skfmm.distance(.5 - _reg)
+            _kapp = mts.kappa(_phi, mode=0)[0]
+            _kapp = mts.gaussfilt(_kapp, sig=1)
 
-            cal_reg = np.abs(_phi) < 2
-            p_kapp = np.where(_kapp > 0, _kapp, 0)
-            n_kapp = np.where(_kapp < 0, _kapp, 0)
+            reg_cal = np.abs(_phi) < 1.5
+            kapp_p = np.where(_kapp > 1E-04, _kapp, 0)
+            kapp_n = np.where(_kapp < -1E-04, _kapp, 0)
 
-            n_pkapp = ((_kapp > 0) * cal_reg).sum()
-            n_nkapp = ((_kapp < 0) * cal_reg).sum()
+            n_kapp_p = (kapp_p * reg_cal).sum()
+            n_kapp_n = (kapp_n * reg_cal).sum()
 
-            if n_pkapp < n_nkapp:
-                indic_kapp[ir + 1] = n_pkapp - n_nkapp
+            if n_kapp_p < n_kapp_n:
+                reg_nkapp.append(l)
 
-        # second phase
-        kmeans = KMeans(n_clusters=2, random_state=0).fit(self.img.reshape((-1, 3)))
-        kmlbl = kmeans.labels_.reshape((self.m, self.n))
+        res = np.copy(lbl)
+        for rnk in reg_nkapp:
+            res = np.where(lbl == rnk, -1., res)
+        return res
 
-        # km0 = ((kmlbl == 0) * self.img.mean(axis=2)).sum() / (kmlbl == 0).sum()
-        # km1 = ((kmlbl == 1) * self.img.mean(axis=2)).sum() / (kmlbl == 1).sum()
+    @staticmethod
+    def regClassByVLine(lbl):
+        reg2bchck = []
+        thres = .95
+        for l in np.unique(lbl):
+            l = 0
+            _reg = np.where(lbl == l)
+            n_samples = round(len(_reg[0]) / 10.)
+            
+            np.random.seed(210501)
+            pts_x = np.random.choice(_reg[1], n_samples, replace=False)
+            flg = 0
+            for pt_x in pts_x:
+                vl_reg = lbl[:, pt_x]
+                if len(vl_reg) > 2:
+                    flg += 1
+            if flg / n_samples > thres:
+                reg2bchck.append(l)
 
-        km0 = ((kmlbl == 0) * self.img[..., 1:].mean(axis=2)).sum() / (kmlbl == 0).sum()
-        km1 = ((kmlbl == 1) * self.img[..., 1:].mean(axis=2)).sum() / (kmlbl == 1).sum()
-
-        mustBT = np.argmax([km0, km1])
-
-        indic_kmeans = {}
-        for ir in range(num_reg):
-            if (ir + 1) not in lbl:
-                continue
-            _reg = np.where(lbl == (ir+1), 1., 0.)
-            _indic = _reg * kmlbl if mustBT else _reg * (1 - kmlbl)
-            indic_kmeans[ir+1] = _indic.sum() / _reg.sum()
-
-        temp = lbl
-        new_lbl = lbl
-        for i, ind in indic_kapp.items():
-            temp = np.where(temp == i, ind, temp)
-            new_lbl = np.where(new_lbl == i, -1, new_lbl)
-
-        temp2 = lbl
-        for i, ind in indic_kmeans.items():
-            temp2 = np.where(temp2 == i, ind, temp2)
-            if ind < .2:
-                new_lbl = np.where(new_lbl == i, -1, new_lbl)
-
-        plt.figure()
-        plt.imshow(temp)
-        plt.savefig(f'{self.dir_img}debug_post.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-        # plt.show()
-
-        return new_lbl
+        res = np.copy(lbl)
+        for r2c in reg2bchck:
+            res = np.where(lbl == r2c, 0., res)
+        return res
 
     def _showSaveMax(self, obj, name, face=None, contour=None):
         fig = plt.figure()
@@ -446,67 +440,3 @@ class PostProc():
 
         #         plt.figure()
         #         plt.hist(vl_pt)
-
-
-
-    def kappa(self, phis, ksz=1, h=1, mode=0):
-        x, y = self.imgrad(phis)
-        if mode == 0:
-            ng = np.sqrt(x**2 + y**2 + self.eps)
-            nx, ny = x / ng, y / ng
-            xx, _ = self.imgrad(nx)
-            _, yy = self.imgrad(ny)
-            return xx + yy, x, y, ng
-        elif mode == 1:
-            xx, yy, xy = self.imgrad(phis, order=2)
-            res_den = xx * y * y - 2 * x * y * xy + yy * x * x
-            res_num = np.power(x ** 2 + y ** 2, 1.5)
-            ng = np.sqrt(x**2 + y**2 + self.eps)        # just for output
-            return res_den / (res_num + self.eps), x, y, ng
-
-    @staticmethod
-    def imgrad(img: np.ndarray, order=1, h=1) -> np.ndarray:
-        '''
-        central difference
-        '''
-        nd = img.ndim
-        if nd < 3:
-            img = np.expand_dims(img, axis=-1)
-        if order == 1:
-            _x_ = img[:, 2:, ...] - img[:, :-2, ...]
-            x_ = img[:, 1:2, ...] - img[:, :1, ...]
-            _x = img[:, -1:, ...] - img[:, -2:-1, ...]
-
-            _y_ = img[2:, :, ...] - img[:-2, :, ...]
-            y_ = img[1:2, :, ...] - img[:1, :, ...]
-            _y = img[-1:, :, ...] - img[-2:-1, :, ...]
-
-            gx = np.concatenate((x_, _x_, _x), axis=1)
-            gy = np.concatenate((y_, _y_, _y), axis=0)
-            if nd < 3:
-                gx = gx[..., 0]
-                gy = gy[..., 0]
-            return gx / (2 * h), gy / (2 * h)
-        elif order == 2:
-            _img = np.pad(img, ((1, 1), (1, 1), (0, 0)), mode='symmetric')
-
-            gxx = _img[1:-1, 2:, ...] + _img[1:-1, :-2, ...] - 2 * _img[1:-1, 1:-1, ...]
-            gyy = _img[2:, 1:-1, ...] + _img[:-2, 1:-1, ...] - 2 * _img[1:-1, 1:-1, ...]
-            gxy = _img[2:, 2:, ...] + _img[:-2, :-2, ...] - _img[2:, :-2, ...] - _img[:-2, 2:, ...]
-            if nd < 3:
-                gxx = gxx[..., 0]
-                gyy = gyy[..., 0]
-                gxy = gxy[..., 0]
-            return gxx / (h * h), gyy / (h * h), gxy / (4 * h * h)
-
-    @staticmethod
-    def loadFile(path):
-        with open(path, 'rb') as f:
-            _dt = pickle.load(f)
-        return _dt
-
-    @staticmethod
-    def gaussfilt(img, sig=2, ksz=None, bordertype=cv2.BORDER_REFLECT):
-        if ksz is None:
-            ksz = ((2 * np.ceil(2 * sig) + 1).astype(int), (2 * np.ceil(2 * sig) + 1).astype(int))
-        return cv2.GaussianBlur(img, ksz, sig, borderType=bordertype)
