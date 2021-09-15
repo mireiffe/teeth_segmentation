@@ -30,17 +30,17 @@ class PostProc():
         self.phi = dict['phi'][..., 0]
         self.m, self.n = self.er.shape
 
-        self.GADF = GADF(self.img)
-        self.Fa = self.GADF.Fa
-        self.er_Fa = self.GADF.Er
-
-        self.lbl_er =  label(self.er_Fa, background=0, connectivity=1)
-
         if 'tot_lbl' in self.dict.keys():
             self.lbl0 = self.dict['lbl0']
             self.lbl = self.dict['lbl']
+            self.er_Fa = self.dict['er_Fa']
+            self.lbl_fa = self.dict['lbl_fa']
             self.tot_lbl = self.dict['tot_lbl']
         else:
+            self.GADF = GADF(self.img)
+            self.Fa = self.GADF.Fa
+            self.er_Fa = self.GADF.Er
+            self.lbl_er =  label(self.er_Fa, background=0, connectivity=1)
             self.lbl0 = self.labeling()
             self.soaking()
             self.lbl = self.labeling()
@@ -171,8 +171,9 @@ class PostProc():
 
     def regClass(self):
         lbl_kapp = self.regClassKapp(self.tot_lbl)
-        lbl_res = self.candVLine(lbl_kapp)
-        return lbl_res
+        cand_rm = self.candVLine(lbl_kapp)
+        lbl_vl = self.regClassVLine(self.img, lbl_kapp, cand_rm)
+        return lbl_vl
 
     @staticmethod
     def regClassKapp(lbl):
@@ -210,8 +211,11 @@ class PostProc():
         for l in np.unique(lbl):
             if l < 0: continue
             _reg = np.where(lbl == l)
-            _x = np.unique(_reg[1])
-            n_samples = round(len(_x) / 2.)
+
+            # _x = np.unique(_reg[1])
+            # n_samples = max(round(len(_x) / 2.), 1)
+            _x = _reg[1]
+            n_samples = max(round(len(_x) / 20.), 1)
             
             np.random.seed(210501)
             samples_x = np.random.choice(_x, n_samples, replace=False)
@@ -222,36 +226,62 @@ class PostProc():
                     flg += 1
             if flg / n_samples > thres:
                 reg2bchck.append(l)
-
-        cand = np.copy(lbl)
-        for r2c in reg2bchck:
-            cand = np.where(lbl == r2c, -1., cand)
-        return cand
+        return reg2bchck
 
     @staticmethod
     def regClassVLine(img, lbl, cand):
         from skimage import color
-        img_lab = color.rgb2lab(img)
-        max_a = np.unravel_index(np.argmax(img_lab[..., 1]), img_lab[..., 1])
-        init_k = [[0, 0, 0], img_lab[max_a[0], max[1], :], [1, 0, 0]]
+        from scipy import stats
 
-        
+        res = np.copy(lbl)
 
-        for l in np.unique(cand):
+        lab = color.rgb2lab(img)
+        max_a = np.unravel_index(np.argmax(lab[..., 1]), lab[..., 1].shape)
+        max_b = np.unravel_index(np.argmax(lab[..., 2]), lab[..., 2].shape)
+        init_k = np.array([[100, 0, 0], lab[max_a[0], max_a[1], :], (lab[max_a[0], max_a[1], :] + [100, 0, 0])/2])
+        # init_k = np.array([lab[max_a[0], max_a[1], :], [100, 0, 0]])
+
+        for l in cand:
             if l < 0: continue
             _reg = np.where(lbl == l)
-            _x = np.unique(_reg[1])
-            n_samples = round(len(_x) / 2.)
+
+            # _x = np.unique(_reg[1])
+            # n_samples = max(round(len(_x) / 2.), 1)
+            _x = _reg[1]
+            n_samples = max(round(len(_x) / 20.), 1)
             
             np.random.seed(210501)
             samples_x = np.random.choice(_x, n_samples, replace=False)
-            flg = 0
-            for s_x in samples_x:
-                vl_reg = np.setdiff1d(lbl[:, s_x], [-1, ])
-                if len(vl_reg) > 2:
-                    flg += 1
-            if flg / n_samples > thres:
-                reg2bchck.append(l)
+
+            modes_reg = []
+            for sx in samples_x:
+                vl_lab = lab[:, sx]
+                vl_lbl = lbl[:, sx]
+
+                p_lbl = vl_lbl[vl_lbl >= 0]
+                p_lab = vl_lab[vl_lbl >= 0]
+
+                m_a = np.unravel_index(np.argmax(p_lab[..., 1]), p_lab[..., 1].shape)
+                init_k = np.array([[100, 0, 0], p_lab[m_a[0], :], (p_lab[m_a[0], :] + [100, 0, 0])/2])
+                kmeans = KMeans(n_clusters=3, init=init_k).fit(p_lab)
+                kmlbl = kmeans.labels_
+
+                l_kmlbl = kmlbl[p_lbl == l]
+                modes_reg.append(int(stats.mode(l_kmlbl)[0]))
+
+                if 1 == 0:
+                    fig = plt.figure()
+                    ax = fig.add_subplot(111, projection='3d') # Axe3D object
+                    ax.scatter(p_lab[..., 1], p_lab[..., 2], p_lab[..., 0], vmin=-1, vmax=46, c=p_lbl, s= 20, alpha=0.5, cmap=mts.colorMapAlpha(plt))
+                    ax.scatter(init_k[..., 1], init_k[..., 2], init_k[..., 0], vmax=2, c=[0, 1, 2], s= 40, alpha=0.5, cmap=mts.colorMapAlpha(plt))
+                    fig = plt.figure()
+                    ax = fig.add_subplot(111, projection='3d') # Axe3D object
+                    ax.scatter(p_lab[..., 1], p_lab[..., 2], p_lab[..., 0], vmax=2, c=kmlbl, s= 20, alpha=0.5, cmap=mts.colorMapAlpha(plt))
+                    ax.scatter(init_k[..., 1], init_k[..., 2], init_k[..., 0], vmax=2, c=[0, 1, 2], s= 40, alpha=0.5, cmap=mts.colorMapAlpha(plt))
+            
+            if int(stats.mode(modes_reg)[0]) == 1:
+                res = np.where(res == l, -1, res)
+        return res
 
     def _showSaveMax(self, obj, name, face=None, contour=None):
         fig = plt.figure()
@@ -297,6 +327,7 @@ class PostProc():
 
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d') # Axe3D object
+        
         _img = self.img[::4, ::4, :]
         r,g,b = _img[..., 0], _img[...,1], _img[..., 2]
         # _img = np.stack((0*r, 3 * g, 5 * b), axis=2)
