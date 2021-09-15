@@ -178,7 +178,7 @@ class PostProc():
                     
         return lbl + _lbl
 
-    def regClass(self, lbl):
+    def regClassByKapp(self, lbl):
         num_reg = int(lbl.max())
 
         indic_kapp = {}
@@ -239,17 +239,6 @@ class PostProc():
         # plt.show()
 
         return new_lbl
-
-    def distSize(self):
-        '''
-        distribution for size of region
-        '''
-        num_reg = np.max(self.tot_lbl)
-        sz_reg = [np.sum(self.tot_lbl == (i + 1)) for i in range(num_reg)]
-
-        self.mu_sz = sum(sz_reg) / num_reg
-        mu_sz_2 = sum([sr ** 2 for sr in sz_reg]) / num_reg
-        self.sig_sz = np.sqrt(mu_sz_2 - self.mu_sz ** 2)
 
     def _showSaveMax(self, obj, name, face=None, contour=None):
         fig = plt.figure()
