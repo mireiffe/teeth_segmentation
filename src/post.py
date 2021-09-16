@@ -46,7 +46,10 @@ class PostProc():
             self.lbl = self.labeling()
             self.lbl_fa = self.toGADF(self.lbl)
             self.tot_lbl = self.zeroReg(self.lbl_fa)
-        self.res = self.regClass()
+        if 'res' in self.dict.keys():
+            self.res = self.dict['res']
+        else:
+            self.res = self.regClass()
         self._saveSteps()
 
     def toGADF(self, lbl):
@@ -59,10 +62,10 @@ class PostProc():
         _regs = []
         cal_regs = []
         for lb in range(1, num_lbl):
-            if (lb not in lbl) or (lb == 0):
+            if (lb not in lbl) or (lb == -1):
                 continue
             _regs.append(np.where(lbl == (lb), -1., 1.))
-            cal_regs.append(np.where((lbl == 0) + (lbl == lb), 1., 0.))
+            cal_regs.append(np.where((lbl == -1) + (lbl == lb), 1., 0.))
 
         Rein = Reinitial(dt=.1, width=5)
         # Rein = Reinitial(dt=.1, width=5, fmm=True)
@@ -294,11 +297,13 @@ class PostProc():
             _res = np.where(face < 0, 0, face)
             plt.imshow(_res, alpha=.4, cmap='rainbow_alpha')
         if contour is not None:
-            Rein = Reinitial()
+            Rein = Reinitial(dt=.1, width=None)
+            ReinKapp = ReinitialKapp(iter=100, mu=.01)
             clrs = ['r'] * 100
             for i in range(int(np.max(contour))):
                 _reg = np.where(contour == i+1, -1., 1.)
                 _reg = Rein.getSDF(_reg)
+                temp = ReinKapp.getSDF(_reg)
                 plt.contour(_reg, levels=[0], colors=clrs[i], linewidths=1)
 
         plt.savefig(f'{self.dir_img}{name}', dpi=1024, bbox_inches='tight', facecolor='#eeeeee')
@@ -323,171 +328,41 @@ class PostProc():
         self.dict['tot_lbl'] = self.tot_lbl
         self.dict['res'] = self.res
 
-        ## meeting
 
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d') # Axe3D object
+class ReinitialKapp(Reinitial):
+    def __init__(self, dt:float=0.1, width:float=5, tol:float=1E-02, iter:int=None, dim:int=2, debug=False, fmm=False, mu=0.1) -> np.ndarray:
+        super().__init__(dt=dt, width=width, tol=tol, iter=iter, dim=dim, debug=debug, fmm=fmm)
+        self.mu = mu
+
+    def update(self, phi):
+        bd, fd = self.imgrad(phi, self.dim)
+
+        # abs(a) and a+ in the paper
+        bxa, bxp = np.abs(bd[0]), np.maximum(bd[0], 0)
+        # abs(b) and b+ in the paper
+        fxa, fxp = np.abs(fd[0]), np.maximum(fd[0], 0)
+        # abs(c) and c+ in the paper
+        bya, byp = np.abs(bd[1]), np.maximum(bd[1], 0)
+        # abs(d) and d+ in the paper
+        fya, fyp = np.abs(fd[1]), np.maximum(fd[1], 0)
+        if self.dim == 3:
+            bza, bzp = np.abs(bd[2]), np.maximum(bd[2], 0)
+            fza, fzp = np.abs(fd[2]), np.maximum(fd[2], 0)
+
+        b_sgn, f_sgn = (self.sign0 - 1) / 2, (self.sign0 + 1) / 2
+
+        Gx = np.maximum((bxa * b_sgn + bxp) ** 2, (-fxa * f_sgn + fxp) ** 2)
+        Gy = np.maximum((bya * b_sgn + byp) ** 2, (-fya * f_sgn + fyp) ** 2)
+        if self.dim == 2:
+            _G = np.sqrt(Gx + Gy) - 1
+        elif self.dim == 3:
+            Gz = np.maximum((bza * b_sgn + bzp) ** 2, (-fza * f_sgn + fzp) ** 2)
+            _G = np.sqrt(Gx + Gy + Gz) - 1
         
-        _img = self.img[::4, ::4, :]
-        r,g,b = _img[..., 0], _img[...,1], _img[..., 2]
-        # _img = np.stack((0*r, 3 * g, 5 * b), axis=2)
-        _tl = self.tot_lbl[::4, ::4]
-
-        _img = np.where(_tl == 1, 0, _img.transpose((2, 0, 1))).transpose((1, 2, 0))
-        _img = np.where(np.sum([_tl == v for v in [10, 18, 21, 22, 23, 9, 11]], axis=0), _img.transpose((2, 0, 1)), 0).transpose((1, 2, 0))
-
-        # _img = np.where(_tl == 1, 0, _img.transpose((2, 0, 1))).transpose((1, 2, 0))
-        # _img = np.where(_tl == 16, 0, _img.transpose((2, 0, 1))).transpose((1, 2, 0))
-        # _img = np.where(np.sum([_tl == v for v in [9, 10, 8]], axis=0), _img.transpose((2, 0, 1)), 0).transpose((1, 2, 0))
-
-        _img = np.where(_tl == 7, 0, _img.transpose((2, 0, 1))).transpose((1, 2, 0))
-        _img = np.where(_tl == 1, 0, _img.transpose((2, 0, 1))).transpose((1, 2, 0))
-        # _img = np.where(np.sum([_tl == v for v in [9, 10, 8]], axis=0), _img.transpose((2, 0, 1)), 0).transpose((1, 2, 0))
-        
-        ax.scatter(_img[..., 0], _img[..., 1], _img[..., 2], c=_tl-1, s= 20, alpha=0.5, cmap=mts.colorMapAlpha(plt))
-        # plt.figure(); plt.imshow(self.tot_lbl, cmap='jet')
-        plt.figure(); plt.imshow(self.tot_lbl * (1-np.sum([self.tot_lbl == v for v in [7, 1]], axis=0)), cmap='jet')
-
-        from skimage import io, color
-        # lab = color.rgb2lab(self.img)
-        lab = color.rgb2lab(self.img)
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d') # Axe3D object
-        _lab = lab[::4, ::4, :]
-        # _lab = np.where(_tl == 1, 0, _lab.transpose((2, 0, 1))).transpose((1, 2, 0))
-        # _lab = np.where(np.sum([_tl == v for v in [10, 18, 21, 22, 23, 9, 11]], axis=0), _lab.transpose((2, 0, 1)), 0).transpose((1, 2, 0))
-        
-        # _lab = np.where(_tl == 16, 0, _lab.transpose((2, 0, 1))).transpose((1, 2, 0))
-        # _lab = np.where(_tl == 1, 0, _lab.transpose((2, 0, 1))).transpose((1, 2, 0))
-        # _lab = np.where(np.sum([_tl == v for v in [8, 9, 10, 12, 14]], axis=0), _lab.transpose((2, 0, 1)), 0).transpose((1, 2, 0))
-        
-        _lab = np.where(_tl == 7, 0, _lab.transpose((2, 0, 1))).transpose((1, 2, 0))
-        _lab = np.where(_tl == 1, 0, _lab.transpose((2, 0, 1))).transpose((1, 2, 0))
-        
-        ax.scatter(_lab[..., 1], _lab[..., 2], _lab[..., 0], c=_tl-1, s= 20, alpha=0.5, cmap=mts.colorMapAlpha(plt))
-
-        plt.figure()
-        plt.imshow((lab - lab.min()) / (lab - lab.min()).max())
-
-        ## sk color quant test
-
-        from sklearn.cluster import KMeans
-        from sklearn.metrics import pairwise_distances_argmin
-        from sklearn.datasets import load_sample_image
-        from sklearn.utils import shuffle
-        from time import time
-
-        n_colors = 16
-
-        # china = self.img
-        china = lab
-        # Load Image and transform to a 2D numpy array.
-        w, h, d = original_shape = tuple(china.shape)
-        assert d == 3
-        image_array = np.reshape(china, (w * h, d))
-
-        print("Fitting model on a small sub-sample of the data")
-        t0 = time()
-        image_array_sample = shuffle(image_array, random_state=0)[:1000]
-        kmeans = KMeans(n_clusters=n_colors, random_state=0).fit(image_array_sample)
-        print("done in %0.3fs." % (time() - t0))
-
-        # Get labels for all points
-        print("Predicting color indices on the full image (k-means)")
-        t0 = time()
-        labels = kmeans.predict(image_array)
-        print("done in %0.3fs." % (time() - t0))
-
-
-        codebook_random = shuffle(image_array, random_state=0)[:n_colors]
-        print("Predicting color indices on the full image (random)")
-        t0 = time()
-        labels_random = pairwise_distances_argmin(codebook_random,
-                                                image_array,
-                                                axis=0)
-        print("done in %0.3fs." % (time() - t0))
-
-
-        def recreate_image(codebook, labels, w, h):
-            """Recreate the (compressed) image from the code book & labels"""
-            d = codebook.shape[1]
-            image = np.zeros((w, h, d))
-            label_idx = 0
-            for i in range(w):
-                for j in range(h):
-                    image[i][j] = codebook[labels[label_idx]]
-                    label_idx += 1
-            return image
-
-        # Display all results, alongside original image
-        plt.figure(1)
-        plt.clf()
-        plt.axis('off')
-        plt.title('Original image (96,615 colors)')
-        plt.imshow(china)
-
-        plt.figure(2)
-        plt.clf()
-        plt.axis('off')
-        plt.title(f'Quantized image ({n_colors} colors, K-Means)')
-        plt.imshow(recreate_image(kmeans.cluster_centers_, labels, w, h))
-
-        __img = np.copy(self.img)
-        for i in range(int(self.tot_lbl.max())):
-            _i = i + 1
-            _reg = np.where(self.tot_lbl == _i, True, False)
-            _mu = np.mean(self.img.transpose((2, 0, 1)), where=_reg)
-            __img = (__img.transpose((2, 0, 1)) - _reg * (_mu - .5)).transpose((1, 2, 0))
-
-        plt.figure()
-        plt.imshow(__img)
-
-        lab = color.rgb2lab(__img)
-        lab = (lab - lab.min()) / (lab - lab.min()).max()
-
-        plt.figure()
-        plt.imshow(lab)
-
-        reg2bchck = []
-        for i in range(int(self.tot_lbl.max())):
-            _i = i + 1
-            _reg = np.where(self.tot_lbl == _i)
-            np.random.seed(210501)
-            pts = np.random.choice(len(_reg[0]), len(_reg[0]) // 10, replace=False)
-            flg = 0
-            for pt in pts:
-                vl_reg = np.setdiff1d(self.tot_lbl[:, _reg[1][pt]], [7, 1, 2, 3, 34, 35])
-                if len(vl_reg) > 2:
-                    flg += 1
-            if flg / len(pts) > .99:
-                reg2bchck.append(_i)
-
-        _sr = np.zeros_like(self.tot_lbl)
-        for rr in reg2bchck:
-            _sr += np.where(self.tot_lbl == rr, 1, 0) * rr
-        plt.figure()
-        plt.imshow(_sr, cmap='jet', vmax=43)
-        
-        vv = 624
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d') # Axe3D object
-
-        # _img = self.img[:, vv, :]
-        # _img = np.where(_sr[:, vv] == 0, 0, _img.transpose((1,0))).transpose((1, 0))
-
-        _img = color.rgb2lab(self.img)[:, vv, :]
-        # _img = color.rgb2lab(self.img)[:, vv, :]
-        _img = np.where(self.tot_lbl[:, vv] == 7, 0, _img.transpose((1,0))).transpose((1, 0))
-        _img = np.where(self.tot_lbl[:, vv] == 1, 0, _img.transpose((1,0))).transpose((1, 0))
-        ax.scatter(_img[..., 1], _img[..., 2], _img[..., 0], c=self.tot_lbl[:, vv], s=20, alpha=1, cmap='jet', vmax=43)
-
-        # for i in range(int(self.tot_lbl.max())):
-        #     _i = i + 1
-        #     _reg = np.where(self.tot_lbl == _i)
-        #     np.random.seed(210501)
-        #     pts = np.random.choice(len(_reg[0]), 10, replace=False)
-        #     for pt in pts:
-        #         vl_pt = self.img.mean(axis=2)[:, _reg[1][pt]]
-
-        #         plt.figure()
-        #         plt.hist(vl_pt)
+        # for numerical stabilities, sign should be updated
+        _sign0 = self.approx_sign(phi)
+        kapp = mts.gaussfilt(mts.kappa(phi)[0], sig=.5)
+        # kapp = mts.kappa(phi)[0]
+        kapp=0
+        _phi = phi - self.dt * (_sign0 * _G - self.mu * kapp)
+        return _phi

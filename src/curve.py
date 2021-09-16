@@ -183,8 +183,8 @@ class CurveProlong():
             # Find tangent at the cut point
             T = np.array(ie[nc]) - np.array(ie[nc - 2])
             nT = np.sqrt(np.sum(T**2))
-            # T = T / (nT + mts.eps)
-            T = T / (nT)
+            T = T / (nT + mts.eps)
+            # T = T / (nT)
             
             Np = np.array([T[1], -T[0]])
             Nn = np.array([-T[1], T[0]])
