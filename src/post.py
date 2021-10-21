@@ -50,6 +50,7 @@ class PostProc():
             self.res = self.dict['res']
         else:
             self.res = self.regClass()
+        # self.res = self.regClass()
         self._saveSteps()
 
     def toGADF(self, lbl):
@@ -65,7 +66,7 @@ class PostProc():
             if (lb not in lbl) or (lb == -1):
                 continue
             _regs.append(np.where(lbl == (lb), -1., 1.))
-            cal_regs.append(np.where((lbl == -1) + (lbl == lb), 1., 0.))
+            cal_regs.append(np.where((lbl == 0) + (lbl == lb), 1., 0.))
 
         Rein = Reinitial(dt=.1, width=5)
         # Rein = Reinitial(dt=.1, width=5, fmm=True)
@@ -91,11 +92,12 @@ class PostProc():
                 teg[_i].setting(_phis[..., _i])
 
             gx, gy = mts.imgrad(_phis)
-            _Fa = - 1 * (gx.transpose((2, 0, 1)) * self.Fa[..., 0] + gy.transpose((2, 0, 1)) * self.Fa[..., 1]) * self.er_Fa * (self.lbl == 0)
-            _Fb = np.array([- tg.force() * (1 - self.er_Fa) for tg in teg])
+            _Fa = - 1 * (gx.transpose((2, 0, 1)) * self.Fa[..., 1] + gy.transpose((2, 0, 1)) * self.Fa[..., 0]) * self.er_Fa * (self.lbl == 0)
+            _Fb = np.array([- tg.force() * (1 - self.er_Fa * (self.lbl == 0)) for tg in teg])
 
             kap = mts.kappa(_phis)[0] * (np.abs(_phis) < 5)
-            _F = mts.gaussfilt((_Fa + _Fb).transpose((1, 2, 0)), 1).transpose((2, 0, 1)) * cal_regs + _Fo + mu * kap.transpose((2, 0, 1))
+            _F = _Fa + mts.gaussfilt((_Fb).transpose((1, 2, 0)), 1).transpose((2, 0, 1)) * cal_regs + _Fo + mu * kap.transpose((2, 0, 1))
+            # _F = (_Fa + _Fb) * cal_regs + _Fo + mu * kap.transpose((2, 0, 1))
             new_phis = _phis + dt * _F.transpose((1, 2, 0))
 
             err = np.abs(new_phis - _phis).sum() / new_phis.size
@@ -136,11 +138,11 @@ class PostProc():
         return lbl
 
     def soaking(self):
-        self.phi = np.where((self.phi > 0) * (self.seg_er < .5), -1, self.phi)
+        self.phi = np.where((self.phi > 0) * (self.er < .5), -1, self.phi)
 
     def zeroReg(self, lbl):
         '''
-        Assing 0 regions by using intensity values
+        Assign 0 regions by using intensity values
         '''
         idx_zero_reg = np.where(lbl == 0)
         _lbl = np.zeros_like(lbl)
@@ -173,13 +175,14 @@ class PostProc():
         return lbl + _lbl
 
     def regClass(self):
-        lbl_kapp = self.regClassKapp(self.tot_lbl)
+        lbl_kapp = self.regClassKapp(self.img, self.tot_lbl)
         cand_rm = self.candVLine(lbl_kapp)
         lbl_vl = self.regClassVLine(self.img, lbl_kapp, cand_rm)
-        return lbl_vl
+        lbl_sd = self.removeSide(self.img, lbl_vl)
+        return lbl_sd
 
     @staticmethod
-    def regClassKapp(lbl):
+    def regClassKapp(img, lbl):
         Rein = Reinitial(dt=.1, width=5)
 
         reg_nkapp = []
@@ -202,9 +205,14 @@ class PostProc():
             if n_kapp_p < n_kapp_n:
                 reg_nkapp.append(l)
 
+        mu_img = np.mean(img, where=np.where(img==0, False, True))
+        var_img = np.var(img, where=np.where(img==0, False, True))
         res = np.copy(lbl)
         for rnk in reg_nkapp:
-            res = np.where(lbl == rnk, -1., res)
+            _reg = (lbl == rnk)
+            _mu_r = np.mean(img.transpose((2, 0, 1)), where=_reg)
+            if _mu_r <= mu_img:
+                res = np.where(lbl == rnk, -1., res)
         return res
 
     @staticmethod
@@ -239,10 +247,14 @@ class PostProc():
         res = np.copy(lbl)
 
         lab = color.rgb2lab(img)
-        max_a = np.unravel_index(np.argmax(lab[..., 1]), lab[..., 1].shape)
-        max_b = np.unravel_index(np.argmax(lab[..., 2]), lab[..., 2].shape)
-        init_k = np.array([[100, 0, 0], lab[max_a[0], max_a[1], :], (lab[max_a[0], max_a[1], :] + [100, 0, 0])/2])
+        # max_a = np.unravel_index(np.argmax(lab[..., 1]), lab[..., 1].shape)
+        # max_b = np.unravel_index(np.argmax(lab[..., 2]), lab[..., 2].shape)
+        # init_k = np.array([[100, 0, 0], lab[max_a[0], max_a[1], :], (lab[max_a[0], max_a[1], :] + [100, 0, 0])/2])
         # init_k = np.array([lab[max_a[0], max_a[1], :], [100, 0, 0]])
+        m_a = np.unravel_index(np.argmax(lab[..., 1]), lab[..., 1].shape)
+        m_b = np.unravel_index(np.argmax(lab[..., 2]), lab[..., 2].shape)
+        # init_k = np.array([[100, 0, 0], p_lab[m_a[0], :], (p_lab[m_a[0], :] + [100, 0, 0])/ 2])
+        init_k = np.array([[100, 0, 0], lab[m_a[0], m_a[1], :], [50, 0, lab[m_b[0], m_b[1], 2]]])
 
         for l in cand:
             if l < 0: continue
@@ -259,31 +271,55 @@ class PostProc():
             modes_reg = []
             for sx in samples_x:
                 vl_lab = lab[:, sx]
+                vl_img = img[:, sx]
                 vl_lbl = lbl[:, sx]
 
                 p_lbl = vl_lbl[vl_lbl >= 0]
+                p_img = vl_img[vl_lbl >= 0]
                 p_lab = vl_lab[vl_lbl >= 0]
 
-                m_a = np.unravel_index(np.argmax(p_lab[..., 1]), p_lab[..., 1].shape)
-                init_k = np.array([[100, 0, 0], p_lab[m_a[0], :], (p_lab[m_a[0], :] + [100, 0, 0])/2])
+                # m_a = np.unravel_index(np.argmax(p_lab[..., 1]), p_lab[..., 1].shape)
+                # m_b = np.unravel_index(np.argmax(p_lab[..., 2]), p_lab[..., 2].shape)
+                # init_k = np.array([[100, 0, 0], p_lab[m_a[0], :], [50, 0, p_lab[m_b[0], :][2]]])
                 kmeans = KMeans(n_clusters=3, init=init_k).fit(p_lab)
                 kmlbl = kmeans.labels_
 
                 l_kmlbl = kmlbl[p_lbl == l]
-                modes_reg.append(int(stats.mode(l_kmlbl)[0]))
+                # modes_reg.append(int(stats.mode(l_kmlbl)[0]))
+                # modes_reg.append(l_kmlbl)
+                modes_reg += list(l_kmlbl)
 
                 if 1 == 0:
                     fig = plt.figure()
                     ax = fig.add_subplot(111, projection='3d') # Axe3D object
                     ax.scatter(p_lab[..., 1], p_lab[..., 2], p_lab[..., 0], vmin=-1, vmax=46, c=p_lbl, s= 20, alpha=0.5, cmap=mts.colorMapAlpha(plt))
-                    ax.scatter(init_k[..., 1], init_k[..., 2], init_k[..., 0], vmax=2, c=[0, 1, 2], s= 40, alpha=0.5, cmap=mts.colorMapAlpha(plt))
+                    ax.scatter(init_k[..., 1], init_k[..., 2], init_k[..., 0], marker='*', vmax=2, c=[0, 1, 2], s= 60, alpha=1, cmap=mts.colorMapAlpha(plt))
                     fig = plt.figure()
                     ax = fig.add_subplot(111, projection='3d') # Axe3D object
                     ax.scatter(p_lab[..., 1], p_lab[..., 2], p_lab[..., 0], vmax=2, c=kmlbl, s= 20, alpha=0.5, cmap=mts.colorMapAlpha(plt))
-                    ax.scatter(init_k[..., 1], init_k[..., 2], init_k[..., 0], vmax=2, c=[0, 1, 2], s= 40, alpha=0.5, cmap=mts.colorMapAlpha(plt))
+                    ax.scatter(init_k[..., 1], init_k[..., 2], init_k[..., 0], marker='*', vmax=2, c=[0, 1, 2], s= 60, alpha=1, cmap=mts.colorMapAlpha(plt))
             
             if int(stats.mode(modes_reg)[0]) == 1:
                 res = np.where(res == l, -1, res)
+        return res
+
+    @staticmethod
+    def removeSide(img, lbl):
+        idx = np.where(lbl > 0)
+        _r = np.argmax(idx[1])
+        _l = np.argmin(idx[1])
+
+        R = lbl[idx[0][_r], idx[1][_r]]
+        L = lbl[idx[0][_l], idx[1][_l]]
+
+        res = np.copy(lbl)
+        mu = np.mean(img)
+        sig = np.sqrt(np.var(img))
+        for i in [R, L]:
+            _reg = (lbl == i)
+            _mu = np.mean(img.transpose((2, 0, 1)), where=_reg)
+            if _mu < mu - 1 * sig:
+                res = np.where(_reg, -1, res)
         return res
 
     def _showSaveMax(self, obj, name, face=None, contour=None):
@@ -297,29 +333,31 @@ class PostProc():
             _res = np.where(face < 0, 0, face)
             plt.imshow(_res, alpha=.4, cmap='rainbow_alpha')
         if contour is not None:
-            Rein = Reinitial(dt=.1, width=None)
-            ReinKapp = ReinitialKapp(iter=100, mu=.01)
+            Rein = Reinitial(dt=.1)
+            ReinKapp = ReinitialKapp(iter=10, mu=.05)
             clrs = ['r'] * 100
             for i in range(int(np.max(contour))):
                 _reg = np.where(contour == i+1, -1., 1.)
-                _reg = Rein.getSDF(_reg)
-                temp = ReinKapp.getSDF(_reg)
+                for _i in range(10):
+                    _reg = Rein.getSDF(_reg)
+                    _reg = ReinKapp.getSDF(_reg)
                 plt.contour(_reg, levels=[0], colors=clrs[i], linewidths=1)
 
-        plt.savefig(f'{self.dir_img}{name}', dpi=1024, bbox_inches='tight', facecolor='#eeeeee')
+        plt.axis('off')
+        plt.savefig(f'{self.dir_img}{name}', dpi=1024, bbox_inches='tight', pad_inches=0)
         plt.close(fig)
 
     def _saveSteps(self):
-        self._showSaveMax(self.lbl0, 'lbl0.png')
-        self._showSaveMax(self.lbl, 'lbl.png')
-        self._showSaveMax(self.er_Fa, 'er_fa.png')
-        self._showSaveMax(self.lbl_fa, 'lbl_fa.png')
-        self._showSaveMax(self.tot_lbl, 'tot_lbl.png')
-        self._showSaveMax(self.res, 'lbl2.png')
-        self._showSaveMax(self.res, 'lbl2.png')
-        self._showSaveMax(self.img, 'res_0.png', contour=self.res)
-        # self._showSaveMax(self.img, 'res_1.png', face=self.res)
-        # self._showSaveMax(self.img, 'res_2.png', face=self.res, contour=self.res)
+        self._showSaveMax(self.lbl0, 'lbl0.pdf')
+        self._showSaveMax(self.lbl, 'lbl.pdf')
+        self._showSaveMax(self.er_Fa, 'er_fa.pdf')
+        self._showSaveMax(self.lbl_fa, 'lbl_fa.pdf')
+        self._showSaveMax(self.tot_lbl, 'tot_lbl.pdf')
+        self._showSaveMax(self.res, 'lbl2.pdf')
+        self._showSaveMax(self.res, 'lbl2.pdf')
+        self._showSaveMax(self.img, 'res_0.pdf', contour=self.res)
+        # self._showSaveMax(self.img, 'res_1.pdf', face=self.res)
+        # self._showSaveMax(self.img, 'res_2.pdf', face=self.res, contour=self.res)
 
         self.dict['lbl0'] = self.lbl0
         self.dict['lbl'] = self.lbl
@@ -363,6 +401,5 @@ class ReinitialKapp(Reinitial):
         _sign0 = self.approx_sign(phi)
         kapp = mts.gaussfilt(mts.kappa(phi)[0], sig=.5)
         # kapp = mts.kappa(phi)[0]
-        kapp=0
         _phi = phi - self.dt * (_sign0 * _G - self.mu * kapp)
         return _phi

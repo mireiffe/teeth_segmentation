@@ -26,33 +26,53 @@ class CurveProlong():
         self.sts = mts.SaveTools(dir_save)
         
         self.removeHoleNShorts()
-        self.sts.imshow(self.er, 'er_pre.png', cmap='gray')
-        self.sts.imshows([self.img, self.sk], 'skel_pre.png', [None, self.jet_alpha], alphas=[None, None])
+        self.sts.imshow(self.er, 'er_pre.pdf', cmap='gray')
+        self.sts.imshows([self.img, self.sk], 'skel_pre.pdf', [None, self.jet_alpha], alphas=[None, None])
 
         self.num_pts = 10
-        self.gap = round(self.wid_er)
+        self.gap = round(np.sqrt(self.wid_er))
         self.maxlen_cv = 2 * (self.gap * (self.num_pts - 1) + self.num_pts)
 
         self.endPreSet()
         self.dilErFa()
         self.skeletonize()
-        self.sts.imshow(self.er, 'er_dilerfa.png', cmap='gray')
-        self.sts.imshows([self.img, self.sk], 'skel_dilerfa.png', [None, self.jet_alpha], alphas=[None, None])
+        self.sts.imshow(self.er, 'er_dilerfa.pdf', cmap='gray')
+        self.sts.imshows([self.img, self.sk], 'skel_dilerfa.pdf', [None, self.jet_alpha], alphas=[None, None])
 
         self.dilCurve(dim_poly=2)
         self.skeletonize()
-        self.sts.imshow(self.er, 'er_quad.png', cmap='gray')
-        self.sts.imshows([self.img, self.sk], 'skel_quad.png', [None, self.jet_alpha], alphas=[None, None])
+        self.sts.imshow(self.er, 'er_quad.pdf', cmap='gray')
+        self.sts.imshows([self.img, self.sk], 'skel_quad.pdf', [None, self.jet_alpha], alphas=[None, None])
 
         self.dilCurve(dim_poly=1)
         self.skeletonize()
-        self.sts.imshow(self.er, 'er_lin.png', cmap='gray')
-        self.sts.imshows([self.img, self.sk], 'skel_lin.png', [None, self.jet_alpha], alphas=[None, None])
+        self.sts.imshow(self.er, 'er_lin.pdf', cmap='gray')
+        self.sts.imshows([self.img, self.sk], 'skel_lin.pdf', [None, self.jet_alpha], alphas=[None, None])
+
+        ######################################
+        ################################
+        plt.figure()
+        # plt.imshow(self.er, 'gray')
+        # plt.imshow(self.lbl_Send[32:224, 18:195] > .5, mts.colorMapAlpha(plt))
+        plt.imshow(self.er[32:224, 18:195], 'gray')
+        plt.imshow(self.lbl_Send[32:224, 18:195] > .5, mts.colorMapAlpha(plt))
+        for i, idx in enumerate(self.ind_end):
+            if i in [2, 1]:
+                continue
+            xx, yy = list(zip(*idx))
+            
+            plt.plot(np.array(yy[1::10]) - 19, np.array(xx[1::10]) - 33, 'r-')
+            plt.plot(yy[0] - 19, xx[0] - 33, 'b', marker='o', markersize=3)
+        plt.axis('off')
+        plt.savefig('forpaper/Fig8_curve.pdf', dpi=1024, bbox_inches='tight', pad_inches=0)
+        
+        # plt.figure(); plt.imshow(self.er, 'gray'); plt.axis('off'); plt.savefig('forpaper/Fig8_img.pdf', bbox_inches='tight', pad_inches=0)
+        
 
     def endPreSet(self):
         self.skeletonize()
         self.findEndPoints()
-        self.findCurves(branch=True)
+        self.findCurves(branch=False)
 
         # 0 if the end point is available, 1 if not.
         self.flag_end = [1 for ie in self.ind_end]
@@ -68,7 +88,7 @@ class CurveProlong():
         for i, ie in enumerate(self.ind_end):
             creg = np.where(lbl_Scuter == lbl_Scuter[tuple(zip(ie[0]))], 1, 0)
             if creg.sum() < (3 * self.num_Scut) * self.wid_er:
-                self.lbl_Send = np.where(creg, i, self.lbl_Send)
+                self.lbl_Send = np.where(creg, i + 1, self.lbl_Send)
 
         self.num_Lcut = Lparam * round(self.wid_er)
         self.Lcut = self.findEndCut(len_cut=self.num_Lcut)
@@ -78,7 +98,7 @@ class CurveProlong():
         for i, ie in enumerate(self.ind_end):
             creg = np.where(lbl_Lcuter == lbl_Lcuter[tuple(zip(ie[0]))], 1, 0)
             if creg.sum() < (3 * self.num_Lcut) * self.wid_er:
-                self.lbl_Lend = np.where(creg, i, self.lbl_Lend)
+                self.lbl_Lend = np.where(creg, i + 1, self.lbl_Lend)
         return 0
 
     def removeHoleNShorts(self):
@@ -152,7 +172,7 @@ class CurveProlong():
 
         for _l in range(lbl_erfa_end.max()):
             l = _l + 1
-            if (not self.flag_end[l]) or (l not in lbl_erfa_end):
+            if (not self.flag_end[_l]) or (l not in lbl_erfa_end):
                 continue
             _regs_end = label(lbl_erfa_end == l, background=0, connectivity=1)
             _regs_Send = _regs_end * (self.lbl_Send > .5)
@@ -163,11 +183,11 @@ class CurveProlong():
                 if sz_reg >= self.num_Scut / 2:
                     add_reg = np.where(_regs_end == idx_reg, 1., 0.)
                     _rad = max(round(self.wid_er / 2 - 1), 1)
-                    add_reg = cv2.filter2D(add_reg, -1, mts.cker(_rad))
+                    add_reg = cv2.filter2D(add_reg, -1, mts.cker(_rad)) > .1
                     _touch = add_reg * np.where(self.lbl_Lend, 0, self.er)
                     if _touch.sum() > 0:
                         self.er = np.where(add_reg, 1, self.er)
-                        # self.flag_end[l] = 0
+                        # self.flag_end[_l] = 0
         return 0
 
     def preSet(self, branch=False):
@@ -284,7 +304,7 @@ class CurveProlong():
 
         lst_del = []
         for idx in self.ind_end:
-            if len(idx) < self.maxlen_cv // 3:
+            if len(idx) < self.maxlen_cv // 5:
                 lst_del.append(idx)
         for ld in lst_del:
             self.ind_end.remove(ld)
@@ -303,15 +323,15 @@ class CurveProlong():
         _er = self.er - self.lbl_Send > .5
         
         if dim_poly == 2:
-            lim_prolong = round(self.wid_er * 10)
+            lim_prolong = round(self.wid_er * 40)
         elif dim_poly == 1:
-            lim_prolong = round(self.wid_er * 5)
+            lim_prolong = round(self.wid_er * 20)
 
         num_reg = label(self.er, background=1, connectivity=1).max()
         for i, ids in enumerate(self.ind_end):
             if not self.flag_end[i]:
                 continue
-            _end = np.where(self.lbl_Lend == i)
+            _end = np.where(self.lbl_Lend == i + 1)
             _norm = np.sqrt((_end[0] - ids[0][0])**2 + (_end[1] - ids[0][1])**2)
             _as = np.argsort(_norm)
 
@@ -331,16 +351,16 @@ class CurveProlong():
             for k, pt in enumerate(pts[1:]):
                 if filled[i] or banned[i] or (_l > lim_prolong):
                     continue
-                yy, xx, _yy, _xx = 0, 0, 0, 0
+                ryy, rxx, _ryy, _rxx = 0, 0, 0, 0
                 for kk in range(dim_poly + 1):
-                    yy += abc[-kk-1, 0] * pow(pt, kk)
-                    xx += abc[-kk-1, 1] * pow(pt, kk)
-                    _yy += abc[-kk-1, 0] * pow(pts[k], kk)
-                    _xx += abc[-kk-1, 1] * pow(pts[k], kk)
-                yy = np.round(yy).astype(int)
-                xx = np.round(xx).astype(int)
-                _yy = np.round(_yy).astype(int)
-                _xx = np.round(_xx).astype(int)
+                    ryy += abc[-kk-1, 0] * pow(pt, kk)
+                    rxx += abc[-kk-1, 1] * pow(pt, kk)
+                    _ryy += abc[-kk-1, 0] * pow(pts[_l], kk)
+                    _rxx += abc[-kk-1, 1] * pow(pts[_l], kk)
+                yy = np.round(ryy).astype(int)
+                xx = np.round(rxx).astype(int)
+                _yy = np.round(_ryy).astype(int)
+                _xx = np.round(_rxx).astype(int)
         
                 if (yy == _yy) and (xx == _xx):
                     continue

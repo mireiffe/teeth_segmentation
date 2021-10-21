@@ -7,16 +7,18 @@ from skimage.measure import label
 class GADF():
     eps = np.finfo(float).eps
 
-    def __init__(self, img, sig=2, epsilon=1):
+    def __init__(self, img, sig=None, epsilon=1):
         self.img_orig = img
         self.epsilon = epsilon
         self.w, self.h = img.shape[:2]
-        img = self.gaussfilt(self.img_orig, sig=sig)
         if len(img.shape) > 2:
             self.c = img.shape[2]
         else:
             self.c = 1
 
+        if sig == None:
+            sig = np.sqrt(self.w**2 + self.h**2) / 300  
+        img = self.gaussfilt(self.img_orig, sig=sig)
         self.Fa = self.gadf(img)
         er = self.edgeRegion()
         er1 = self.fineEr(iter=5, coeff=4)

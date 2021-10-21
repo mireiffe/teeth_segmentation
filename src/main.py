@@ -62,7 +62,8 @@ class TeethSeg():
         '''
         Inference edge regions with a learned deep neural net
         '''
-        edrg = EdgeRegion(args, ni, scaling=False)
+        # edrg = EdgeRegion(args, ni, scaling=False)
+        edrg = EdgeRegion(args, ni, scaling=True)
         input, output = edrg.getEr()
         _dt = {'img': input, 'output': output, 'net_er': np.where(output > .5, 1., 0.)}
 
@@ -71,9 +72,9 @@ class TeethSeg():
 
         print(f"Edge region: {self.path_img} is saved!!")
         
-        self.sts.imshow(input, 'img.png')
-        self.sts.imshow(output, 'output.png', cmap='gray')
-        self.sts.imshow(np.where(output > .5, 1., 0.), 'net_er.png', cmap='gray')
+        self.sts.imshow(input, 'img.pdf')
+        self.sts.imshow(output, 'output.pdf', cmap='gray')
+        self.sts.imshow(np.where(output > .5, 1., 0.), 'net_er.pdf', cmap='gray')
 
     def repair_er(self):
         _dt = mts.loadFile(self.path_img)
@@ -90,8 +91,8 @@ class TeethSeg():
 
     def seg_lvset(self):
         _dt = mts.loadFile(self.path_img)
-        seg_er = cv2.dilate(_dt['repaired_sk'].astype(float), np.ones((3, 3)), -1, iterations=1)
-        # seg_er = _dt['er']
+        # seg_er = cv2.filter2D(_dt['repaired_sk'].astype(float), -1, mts.cker(3).astype(float)) > .1
+        seg_er = _dt['er']
         mgn = 2
         edge_er = np.ones_like(seg_er)
         edge_er[mgn:-mgn, mgn:-mgn] = seg_er[mgn:-mgn, mgn:-mgn]
@@ -123,10 +124,12 @@ class TeethSeg():
 
             if (_k == 1) or (_k > max_iter):
                 bln.drawContours(_k, phis, ax)
-                plt.savefig(join(self.dir_save, f"test{_k:05d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+                plt.axis('off')
+                plt.savefig(join(self.dir_save, f"test{_k:05d}.pdf"), dpi=1024, bbox_inches='tight', pad_inches=0)
             if _save or _vis:
                 bln.drawContours(_k, phis, ax)
-                # _save: plt.savefig(join(dir_resimg, f"test{_k:05d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+                plt.axis('off')
+                # _save: plt.savefig(join(dir_resimg, f"test{_k:05d}.pdf"), dpi=1024, bbox_inches='tight', pad_inches=0)
                 if _vis: plt.pause(.1)
             
             err = np.abs(new_phis - phis).sum() / np.ones_like(phis).sum()
@@ -145,7 +148,8 @@ class TeethSeg():
         lbl = label(seg_res, background=0, connectivity=1)
         plt.figure()
         plt.imshow(lbl)
-        plt.savefig(f'{self.dir_save}lbl0.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
+        plt.axis('off')
+        plt.savefig(f'{self.dir_save}lbl0.pdf', dpi=1024, bbox_inches='tight', pad_inches=0)
         plt.close('all')
 
     def post_seg(self):
@@ -166,7 +170,8 @@ if __name__=='__main__':
 
     imgs = args.imgs if args.imgs else [0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 20, 21]
     imgs = args.imgs if args.imgs else [4, 5, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 20, 21]
-    imgs = args.imgs if args.imgs else [17]
+    imgs = args.imgs if args.imgs else [0, 1, 8 ,17]
+    imgs = args.imgs if args.imgs else [12]
 
     today = time.strftime("%y%m%d", time.localtime(time.time()))
     # label_test = '1'
