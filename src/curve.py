@@ -30,7 +30,7 @@ class CurveProlong():
         self.sts.imshows([self.img, self.sk], 'skel_pre.pdf', [None, self.jet_alpha], alphas=[None, None])
 
         self.num_pts = 10
-        self.gap = round(np.sqrt(self.wid_er))
+        self.gap = round(self.wid_er)
         self.maxlen_cv = 2 * (self.gap * (self.num_pts - 1) + self.num_pts)
 
         self.endPreSet()
@@ -52,17 +52,19 @@ class CurveProlong():
         ######################################
         ################################
         plt.figure()
-        # plt.imshow(self.er, 'gray')
+        plt.imshow(self.er, 'gray')
         # plt.imshow(self.lbl_Send[32:224, 18:195] > .5, mts.colorMapAlpha(plt))
-        plt.imshow(self.er[32:224, 18:195], 'gray')
-        plt.imshow(self.lbl_Send[32:224, 18:195] > .5, mts.colorMapAlpha(plt))
+        # plt.imshow(self.er[32:224, 18:195], 'gray')
+        # plt.imshow(self.lbl_Send[32:224, 18:195] > .5, mts.colorMapAlpha(plt))
         for i, idx in enumerate(self.ind_end):
             if i in [2, 1]:
                 continue
             xx, yy = list(zip(*idx))
             
-            plt.plot(np.array(yy[1::10]) - 19, np.array(xx[1::10]) - 33, 'r-')
-            plt.plot(yy[0] - 19, xx[0] - 33, 'b', marker='o', markersize=3)
+            # plt.plot(np.array(yy[1::10]) - 19, np.array(xx[1::10]) - 33, 'r-')
+            # plt.plot(yy[0] - 19, xx[0] - 33, 'b', marker='o', markersize=3)
+            plt.plot(np.array(yy[1::10]), np.array(xx[1::10]), 'r-')
+            plt.plot(yy[0], xx[0], 'b', marker='o', markersize=3)
         plt.axis('off')
         plt.savefig('forpaper/Fig8_curve.pdf', dpi=1024, bbox_inches='tight', pad_inches=0)
         
@@ -304,7 +306,7 @@ class CurveProlong():
 
         lst_del = []
         for idx in self.ind_end:
-            if len(idx) < self.maxlen_cv // 5:
+            if len(idx) < self.maxlen_cv // 10:
                 lst_del.append(idx)
         for ld in lst_del:
             self.ind_end.remove(ld)
@@ -323,9 +325,9 @@ class CurveProlong():
         _er = self.er - self.lbl_Send > .5
         
         if dim_poly == 2:
-            lim_prolong = round(self.wid_er * 40)
+            lim_prolong = round(self.wid_er * 100)
         elif dim_poly == 1:
-            lim_prolong = round(self.wid_er * 20)
+            lim_prolong = round(self.wid_er * 50)
 
         num_reg = label(self.er, background=1, connectivity=1).max()
         for i, ids in enumerate(self.ind_end):

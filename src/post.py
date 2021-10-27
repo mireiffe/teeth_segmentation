@@ -5,6 +5,7 @@ import cv2
 import pickle
 import numpy as np
 import matplotlib.pyplot as plt
+from numpy.lib.arraysetops import unique
 
 from skimage.measure import label
 import skfmm
@@ -50,7 +51,7 @@ class PostProc():
             self.res = self.dict['res']
         else:
             self.res = self.regClass()
-        # self.res = self.regClass()
+        self.res = self.regClass()
         self._saveSteps()
 
     def toGADF(self, lbl):
@@ -179,7 +180,19 @@ class PostProc():
         cand_rm = self.candVLine(lbl_kapp)
         lbl_vl = self.regClassVLine(self.img, lbl_kapp, cand_rm)
         lbl_sd = self.removeSide(self.img, lbl_vl)
-        return lbl_sd
+        lbl_sd2 = self.removeBG(lbl_sd)
+        return lbl_sd2
+
+    @staticmethod
+    def removeBG(lbl):
+
+        if len(np.unique(lbl[[0, -1], :])) == 1 and len(np.unique(lbl[:, [0, -1]])):
+            if np.unique(lbl[[0, -1], :])[0] == np.unique(lbl[:, [0, -1]])[0]:
+                l = np.unique(lbl[[0, -1], :])[0]
+                res = np.copy(lbl)
+                res = np.where(lbl == l, -1., res)
+
+        return res
 
     @staticmethod
     def regClassKapp(img, lbl):

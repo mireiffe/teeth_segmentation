@@ -5,7 +5,7 @@ import cv2
 class Reinitial():
     eps = np.finfo(float).eps
 
-    def __init__(self, dt:float=0.1, width:float=5, tol:float=1E-02, iter:int=None, dim:int=2, debug=False, fmm=False) -> np.ndarray:
+    def __init__(self, dt:float=0.1, width:float=5, tol:float=1E-02, iter:int=None, dim:int=2, debug=False, fmm=False, dim_stack=2) -> np.ndarray:
         '''
         This function make a signed distance function by doing the re-initialization.
         Everything is based on the sussman's paper(1994), but this contains additional 3D implementation.
@@ -40,6 +40,7 @@ class Reinitial():
         self.iter = iter
         self.debug = debug
         self.fmm = fmm
+        self.dim_stack = dim_stack
 
     def getSDF(self, img):
         '''
@@ -49,6 +50,8 @@ class Reinitial():
         - img: numpy array like,\n
             Negative parts are considered as the region of interest.
         '''
+        if self.dim_stack == 0:
+            img = img.transpose((1, 2, 0))
         if self.fmm:
             import skfmm
             if self.dim == 2 and img.ndim == 3:
@@ -80,6 +83,8 @@ class Reinitial():
                 if err < self.tol * self.dt:
                     break
             phi = np.copy(new_phi)
+        if self.dim_stack == 0:
+            new_phi = new_phi.transpose((2, 0, 1))
         return new_phi
 
     def update(self, phi):
