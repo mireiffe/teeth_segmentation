@@ -4,7 +4,6 @@ from configparser import ConfigParser, ExtendedInterpolation
 
 import torch
 
-from _networks.dataset import ErDataset
 from torch.utils.data import DataLoader
 from torchvision.transforms import functional as TF
 from torchvision.transforms.functional import InterpolationMode
@@ -12,6 +11,7 @@ from torchvision.transforms.functional import InterpolationMode
 import matplotlib.pyplot as plt
 
 # custom libs
+from _networks.dataset import ErDataset
 from _networks import model
 
 

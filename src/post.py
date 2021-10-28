@@ -69,7 +69,7 @@ class PostProc():
             _regs.append(np.where(lbl == (lb), -1., 1.))
             cal_regs.append(np.where((lbl == 0) + (lbl == lb), 1., 0.))
 
-        Rein = Reinitial(dt=.1, width=5)
+        Rein = Reinitial(dt=.2, width=3.5, tol=0.01)
         # Rein = Reinitial(dt=.1, width=5, fmm=True)
         _phis = Rein.getSDF(np.transpose(_regs, (1, 2, 0)))
         n_phis = _phis.shape[-1]
@@ -102,7 +102,7 @@ class PostProc():
             new_phis = _phis + dt * _F.transpose((1, 2, 0))
 
             err = np.abs(new_phis - _phis).sum() / new_phis.size
-            if err < 1E-04 or _k > 20:
+            if err < 1E-04 or _k > 200:
                 break
         
             if _k % 1 == 0:
