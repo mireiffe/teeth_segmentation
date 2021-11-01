@@ -1,6 +1,6 @@
 import numpy as np
 import cv2
-
+import skfmm
 
 class Reinitial():
     eps = np.finfo(float).eps
@@ -53,7 +53,6 @@ class Reinitial():
         if self.dim_stack == 0:
             img = img.transpose((1, 2, 0))
         if self.fmm:
-            import skfmm
             if self.dim == 2 and img.ndim == 3:
                 phi = np.zeros_like(img)
                 for i in range(img.shape[-1]):
