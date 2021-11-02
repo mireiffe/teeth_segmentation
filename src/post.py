@@ -28,78 +28,56 @@ class PostProc():
         self.img = dict['img']
         self.seg_er = dict['seg_er']
         self.er = dict['er']
-        self.phi = dict['phi'][..., 0]
+        self.phi0 = dict['phi0']
         self.m, self.n = self.er.shape
 
-        if 'tot_lbl' in self.dict.keys():
-            self.lbl0 = self.dict['lbl0']
-            self.lbl = self.dict['lbl']
-            self.er_Fa = self.dict['er_Fa']
-            self.lbl_fa = self.dict['lbl_fa']
-            self.tot_lbl = self.dict['tot_lbl']
-        else:
-            self.GADF = GADF(self.img)
-            self.Fa = self.GADF.Fa
-            self.er_Fa = self.GADF.Er
-            self.lbl_er =  label(self.er_Fa, background=0, connectivity=1)
-            self.lbl0 = self.labeling()
-            self.soaking()
-            self.lbl = self.labeling()
-            self.lbl_fa = self.toGADF(self.lbl)
-            self.tot_lbl = self.zeroReg(self.lbl_fa)
-        if 'res' in self.dict.keys():
-            self.res = self.dict['res']
-        else:
-            self.res = self.regClass()
+        self.GADF = GADF(self.img)
+        self.Fa = self.GADF.Fa
+        self.er_Fa = self.GADF.Er
+        self.lbl_er =  label(self.er_Fa, background=0, connectivity=1)
+
+        self.phi_res = self.snake(self.phi0)
+        # self.tot_lbl = self.zeroReg(self.lbl_fa)
+        self.tot_lbl = self.setReg(self.phi_res)
+        
+        
         self.res = self.regClass()
         self._saveSteps()
 
-    def toGADF(self, lbl):
+    def snake(self, phi0):
         clrs = ['r', 'g', 'b', 'c', 'm', 'y', 'k'] * 10
         dt = 0.1
-        # mu = .1
         mu = .5
-        num_lbl = np.max(lbl) + 1
-        X, Y = np.mgrid[0:self.m, 0:self.n]
-        _regs = []
-        cal_regs = []
-        for lb in range(1, num_lbl):
-            if (lb not in lbl) or (lb == -1):
-                continue
-            _regs.append(np.where(lbl == (lb), -1., 1.))
-            cal_regs.append(np.where((lbl == 0) + (lbl == lb), 1., 0.))
+        n_phis = len(phi0)
 
-        Rein = Reinitial(dt=.2, width=3.5, tol=0.01)
-        # Rein = Reinitial(dt=.1, width=5, fmm=True)
-        _phis = Rein.getSDF(np.transpose(_regs, (1, 2, 0)))
-        n_phis = _phis.shape[-1]
+        # Rein = Reinitial(dt=.2, width=3.5, tol=0.01, dim_stack=0, fmm=True)
+        Rein = Reinitial(dt=.2, width=3.5, tol=0.01, dim_stack=0)
         teg = [ThreeRegions(self.img) for nph in range(n_phis)]
+
+        _phis = np.copy(phi0)
 
         _k = 0
         while True:
             _k += 1
             if _k % 2 == 0:
                 _phis = Rein.getSDF(_phis)
-                pass
-            else:
-                pass
 
             _dist = 1
             regs = np.where(_phis < _dist, _phis - _dist, 0)
-            all_regs = regs.sum(axis=-1)
-            _Fo = - (all_regs - regs.transpose((2, 0, 1)))
+            all_regs = regs.sum(axis=0)
+            _Fc = - (all_regs - regs) - 1
 
             for _i in range(n_phis):
-                teg[_i].setting(_phis[..., _i])
+                teg[_i].setting(_phis[_i])
 
-            gx, gy = mts.imgrad(_phis)
-            _Fa = - 1 * (gx.transpose((2, 0, 1)) * self.Fa[..., 1] + gy.transpose((2, 0, 1)) * self.Fa[..., 0]) * self.er_Fa * (self.lbl == 0)
-            _Fb = np.array([- tg.force() * (1 - self.er_Fa * (self.lbl == 0)) for tg in teg])
+            gx, gy = mts.imgrad(_phis.transpose((1, 2, 0)))
+            _Fa = - (gx.transpose((2, 0, 1)) * self.Fa[..., 1] + gy.transpose((2, 0, 1)) * self.Fa[..., 0]) * self.er_Fa * self.er
+            _Fb = np.array([- tg.force() * (1 - self.er_Fa * self.er) * self.er for tg in teg])
 
-            kap = mts.kappa(_phis)[0] * (np.abs(_phis) < 5)
-            _F = _Fa + mts.gaussfilt((_Fb).transpose((1, 2, 0)), 1).transpose((2, 0, 1)) * cal_regs + _Fo + mu * kap.transpose((2, 0, 1))
+            kap = mts.kappa(_phis.transpose((1, 2, 0)))[0].transpose((2, 0, 1)) * (np.abs(_phis) < 5)
+            _F = _Fa + mts.gaussfilt((_Fb).transpose((1, 2, 0)), 1).transpose((2, 0, 1)) + _Fc + mu * kap
             # _F = (_Fa + _Fb) * cal_regs + _Fo + mu * kap.transpose((2, 0, 1))
-            new_phis = _phis + dt * _F.transpose((1, 2, 0))
+            new_phis = _phis + dt * _F
 
             err = np.abs(new_phis - _phis).sum() / new_phis.size
             if err < 1E-04 or _k > 200:
@@ -109,10 +87,10 @@ class PostProc():
                 plt.figure(1)
                 plt.cla()
                 plt.imshow(self.img)
-                plt.imshow(self.lbl == 0, 'gray', alpha=.3)
-                plt.imshow(self.er_Fa * (self.lbl == 0), alpha=.3)
-                for i in range(_phis.shape[-1]):
-                    plt.contour(_phis[..., i], levels=[0], colors=clrs[i])
+                plt.imshow(self.er, 'gray', alpha=.3)
+                plt.imshow(self.er_Fa * (self.er), vmax=1.3, cmap=mts.colorMapAlpha(plt))
+                for i, ph in enumerate(_phis):
+                    plt.contour(ph, levels=[0], colors=clrs[i])
                 plt.title(f'iter = {_k:d}')
                 # plt.show()
                 plt.pause(.1)
@@ -141,39 +119,12 @@ class PostProc():
     def soaking(self):
         self.phi = np.where((self.phi > 0) * (self.er < .5), -1, self.phi)
 
-    def zeroReg(self, lbl):
-        '''
-        Assign 0 regions by using intensity values
-        '''
-        idx_zero_reg = np.where(lbl == 0)
-        _lbl = np.zeros_like(lbl)
-        for idx in zip(*idx_zero_reg):
-            val_img = self.img[idx]
-            _k = 0
-            while True:
-                _k += 1
-                x0 = np.maximum(idx[0]-_k, 0)
-                x1 = np.minimum(idx[0]+_k+1, self.m)
-                y0 = np.maximum(idx[1]-_k, 0)
-                y1 = np.minimum(idx[1]+_k+1, self.n)
-                ptch_img = self.img[x0:x1, y0:y1, :]
-                ptch = lbl[x0:x1, y0:y1]
-                ele_ptch = np.unique(ptch)
-                if _k <= 3:
-                    if len(ele_ptch) > 2:
-                        break
-                else:
-                    if len(ele_ptch) > 1:
-                        break
-            min_dist = []
-            for ep in ele_ptch[1:]:
-                idx_ep = np.where(ptch == ep)
-                l2dist = np.sqrt(((val_img - ptch_img[idx_ep])**2).sum(axis=-1))
-                min_dist.append(l2dist.min())
-            el_min = np.argmin(min_dist) + 1
-            _lbl[idx] = ele_ptch[el_min]
-                    
-        return lbl + _lbl
+    def setReg(self, phis):
+        res = np.zeros_like(self.er)
+        for i, phi in phis:
+            res = np.where(phi < 0, i, res)
+
+        return res
 
     def regClass(self):
         lbl_kapp = self.regClassKapp(self.img, self.tot_lbl)
@@ -361,22 +312,19 @@ class PostProc():
         plt.close(fig)
 
     def _saveSteps(self):
-        self._showSaveMax(self.lbl0, 'lbl0.pdf')
-        self._showSaveMax(self.lbl, 'lbl.pdf')
         self._showSaveMax(self.er_Fa, 'er_fa.pdf')
-        self._showSaveMax(self.lbl_fa, 'lbl_fa.pdf')
+        self._showSaveMax(self.er_Fa * self.er, 'use_er.pdf')
         self._showSaveMax(self.tot_lbl, 'tot_lbl.pdf')
-        self._showSaveMax(self.res, 'lbl2.pdf')
-        self._showSaveMax(self.res, 'lbl2.pdf')
-        self._showSaveMax(self.img, 'res_0.pdf', contour=self.res)
+        self._showSaveMax(self.res, 'res.pdf')
+        self._showSaveMax(self.img, 'phi_res.pdf', contour=self.tot_lbl)
+        self._showSaveMax(self.img, 'res_c.pdf', contour=self.res)
         # self._showSaveMax(self.img, 'res_1.pdf', face=self.res)
         # self._showSaveMax(self.img, 'res_2.pdf', face=self.res, contour=self.res)
 
-        self.dict['lbl0'] = self.lbl0
-        self.dict['lbl'] = self.lbl
+
         self.dict['er_Fa'] = self.er_Fa
-        self.dict['lbl_fa'] = self.lbl_fa
         self.dict['tot_lbl'] = self.tot_lbl
+        self.dict['phi_res'] = self.phi_res
         self.dict['res'] = self.res
 
 

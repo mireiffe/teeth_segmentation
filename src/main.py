@@ -15,6 +15,7 @@ from balloon import Balloon
 from curve import CurveProlong
 from post import PostProc
 import myTools as mts
+from reinitial import Reinitial
 
 
 VISIBLE = False
@@ -31,12 +32,9 @@ def get_args():
     parser.add_argument("--make_er", dest="make_er",
                              required=False, action='store_true',
                              help="Network inference for making edge region")
-    parser.add_argument("--repair_er", dest="repair_er",
+    parser.add_argument("--trim_er", dest="trim_er",
                              required=False, action='store_true',
-                             help="Repair the edge region")
-    parser.add_argument("--seg_lvset", dest="seg_lvset",
-                             required=False, action='store_true',
-                             help="Segmentation by using level set method")
+                             help="Trim the edge region")
     parser.add_argument("--post_seg", dest="post_seg",
                              required=False, action='store_true',
                              help="Post process for segmentation")
@@ -57,7 +55,7 @@ class TeethSeg():
         self.path_img = join(self.dir_save, f'{num_img:05d}.pth')
 
         self.dt = {}
-        
+
     def make_er(self):
         '''
         Inference edge regions with a learned deep neural net
@@ -76,81 +74,29 @@ class TeethSeg():
         self.sts.imshow(output, 'output.pdf', cmap='gray')
         self.sts.imshow(np.where(output > .5, 1., 0.), 'net_er.pdf', cmap='gray')
 
-    def repair_er(self):
+        return 0
+
+    def trim_er(self):
         _dt = mts.loadFile(self.path_img)
         img = _dt['img']
         net_er = _dt['net_er']
 
         CP = CurveProlong(img, net_er, self.dir_save)
-
         _dt['er'] = CP.er
         _dt['edge_er'] = CP.edge_er
         _dt['repaired_sk'] = CP.sk
+
+        seg_er = CP.er
+        lbl_reg = label(seg_er, background=1, connectivity=1)
+
+        rein = Reinitial(dt=0.1, width=10, tol=0.01)
+        phis = [rein.getSDF(np.where(lbl_reg == l, -1., 1.)) for l in range(1, np.max(lbl_reg)+1)]
+
+        _dt.update({'seg_er': seg_er, 'phi0': phis})
         mts.saveFile(_dt, self.path_img)
         plt.close('all')
 
-    def seg_lvset(self):
-        _dt = mts.loadFile(self.path_img)
-        # seg_er = cv2.filter2D(_dt['repaired_sk'].astype(float), -1, mts.cker(3).astype(float)) > .1
-        seg_er = _dt['er']
-        mgn = 2
-        edge_er = np.ones_like(seg_er)
-        edge_er[mgn:-mgn, mgn:-mgn] = seg_er[mgn:-mgn, mgn:-mgn]
-        temp = edge_er - seg_er
-        seg_er = edge_er
-
-        bln = Balloon(seg_er, wid=5, radii='auto', dt=0.05)
-        phis = bln.phis0
-
-        _dt.update({'seg_er': seg_er, 'phi0': phis})
-        # _dt.update({'seg_er': seg_er - temp, 'phi0': phis})
-
-        fig, ax = bln.setFigure(phis)
-        mng = plt.get_current_fig_manager()
-        mng.window.showMaximized()
-        
-        tol = 0.01
-        _k = 0
-        max_iter = 500
-        _visterm = 10
-        while True:
-            _vis = _k % _visterm == 0 if VISIBLE else _k % _visterm == -1
-            _save = _k % 3 == 3
-            _k += 1
-            _reinit = _k % 10 == 0
-
-            new_phis = bln.update(phis)
-            print(f"\rimage {ni}, iteration: {_k}", end='')
-
-            if (_k == 1) or (_k > max_iter):
-                bln.drawContours(_k, phis, ax)
-                plt.axis('off')
-                plt.savefig(join(self.dir_save, f"test{_k:05d}.pdf"), dpi=1024, bbox_inches='tight', pad_inches=0)
-            if _save or _vis:
-                bln.drawContours(_k, phis, ax)
-                plt.axis('off')
-                # _save: plt.savefig(join(dir_resimg, f"test{_k:05d}.pdf"), dpi=1024, bbox_inches='tight', pad_inches=0)
-                if _vis: plt.pause(.1)
-            
-            err = np.abs(new_phis - phis).sum() / np.ones_like(phis).sum()
-            if (err < tol) or _k > max_iter:
-                # new_phis[..., 0] = np.where(temp, -1., new_phis[..., 0])
-                # new_phis[..., 0] = np.where(seg_er, -1., new_phis[..., 0])
-                _dt['phi'] = new_phis
-                mts.saveFile(_dt, self.path_img)
-                break
-
-            if _reinit:
-                new_phis = np.where(new_phis < 0, -1., 1.)
-                new_phis = bln.reinit.getSDF(new_phis)
-            phis = new_phis
-        seg_res = np.where(phis < 0, 1., 0.)
-        lbl = label(seg_res, background=0, connectivity=1)
-        plt.figure()
-        plt.imshow(lbl)
-        plt.axis('off')
-        plt.savefig(f'{self.dir_save}lbl0.pdf', dpi=1024, bbox_inches='tight', pad_inches=0)
-        plt.close('all')
+        return 0
 
     def post_seg(self):
         _dt = mts.loadFile(self.path_img)
@@ -170,8 +116,8 @@ if __name__=='__main__':
 
     imgs = args.imgs if args.imgs else [0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 20, 21]
     imgs = args.imgs if args.imgs else [4, 5, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 20, 21]
-    imgs = args.imgs if args.imgs else [0, 1, 8 ,17]
-    imgs = args.imgs if args.imgs else [1]
+    imgs = args.imgs if args.imgs else [0, 1, 5, 8, 12, 17, 18]
+    # imgs = args.imgs if args.imgs else [0, 1, 8 ,17]
 
     today = time.strftime("%y%m%d", time.localtime(time.time()))
     # label_test = '1'
@@ -190,10 +136,7 @@ if __name__=='__main__':
             TSeg.make_er()
         
         if args.repair_er:
-            TSeg.repair_er()
-
-        if args.seg_lvset:
-            TSeg.seg_lvset()
+            TSeg.trim_er()
 
         if args.post_seg:
             TSeg.post_seg()

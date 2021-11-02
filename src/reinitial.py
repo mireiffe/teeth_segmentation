@@ -59,6 +59,8 @@ class Reinitial():
                     phi[..., i] = skfmm.distance(img[..., i], dx=1)
             else:
                 phi = skfmm.distance(img, dx=1)
+            if self.dim_stack == 0:
+                phi = phi.transpose((2, 0, 1))
             return phi
 
         self.sign0 = np.sign(img)
