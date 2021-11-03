@@ -97,7 +97,7 @@ class ThreeRegions():
         F3 = np.sign(np.where(self.band, P3_i - P3_o, 0.))
 
         # V2 = np.where(np.abs(self.mu3_i - self.mu3_o) < .1, 1, F3)
-        V2 = np.where(np.abs(self.mu3_i - self.mu3_o) < .1, 0, F3)
+        V2 = (np.where(np.abs(self.mu3_i - self.mu3_o) < .1, 1, F3) - 1)
         # V2 = F3
 
         return V2

@@ -37,21 +37,23 @@ class PostProc():
         self.lbl_er =  label(self.er_Fa, background=0, connectivity=1)
 
         self.phi_res = self.snake(self.phi0)
+        dict['phi_res'] = self.phi_res
+
+
         # self.tot_lbl = self.zeroReg(self.lbl_fa)
         self.tot_lbl = self.setReg(self.phi_res)
-        
         
         self.res = self.regClass()
         self._saveSteps()
 
     def snake(self, phi0):
         clrs = ['r', 'g', 'b', 'c', 'm', 'y', 'k'] * 10
-        dt = 0.1
-        mu = .5
+        dt = 0.3
+        mu = .2
         n_phis = len(phi0)
 
-        # Rein = Reinitial(dt=.2, width=3.5, tol=0.01, dim_stack=0, fmm=True)
-        Rein = Reinitial(dt=.2, width=3.5, tol=0.01, dim_stack=0)
+        # Rein = Reinitial(dt=.2, width=4, tol=0.01, dim_stack=0, fmm=True)
+        Rein = Reinitial(dt=.2, width=4, tol=0.01, dim_stack=0)
         teg = [ThreeRegions(self.img) for nph in range(n_phis)]
 
         _phis = np.copy(phi0)
@@ -59,37 +61,42 @@ class PostProc():
         _k = 0
         while True:
             _k += 1
-            if _k % 2 == 0:
-                _phis = Rein.getSDF(_phis)
+            if _k % 3 == 0:
+                _phis = Rein.getSDF(np.where(_phis < 0, -1., 1.))
 
             _dist = 1
             regs = np.where(_phis < _dist, _phis - _dist, 0)
             all_regs = regs.sum(axis=0)
-            _Fc = - (all_regs - regs) - 1
+            _Fc = (- (all_regs - regs) - 1) * (1 - self.er * self.er_Fa)
 
             for _i in range(n_phis):
                 teg[_i].setting(_phis[_i])
 
             gx, gy = mts.imgrad(_phis.transpose((1, 2, 0)))
             _Fa = - (gx.transpose((2, 0, 1)) * self.Fa[..., 1] + gy.transpose((2, 0, 1)) * self.Fa[..., 0]) * self.er_Fa * self.er
-            _Fb = np.array([- tg.force() * (1 - self.er_Fa * self.er) * self.er for tg in teg])
+            _Fb = np.array([- tg.force() for tg in teg])
 
             kap = mts.kappa(_phis.transpose((1, 2, 0)))[0].transpose((2, 0, 1)) * (np.abs(_phis) < 5)
-            _F = _Fa + mts.gaussfilt((_Fb).transpose((1, 2, 0)), 1).transpose((2, 0, 1)) + _Fc + mu * kap
+            _F = _Fa + mts.gaussfilt((_Fb).transpose((1, 2, 0)), .5).transpose((2, 0, 1)) * (self.er - self.er_Fa * self.er) + _Fc * (1 - self.er * self.er_Fa) + mu * kap
+            # _F = _Fa + _Fb + _Fc  + mu * kap
             # _F = (_Fa + _Fb) * cal_regs + _Fo + mu * kap.transpose((2, 0, 1))
+            # new_phis = np.where(np.abs(_phis) < 10, _phis + dt * _F, _phis)
             new_phis = _phis + dt * _F
 
             err = np.abs(new_phis - _phis).sum() / new_phis.size
             if err < 1E-04 or _k > 200:
                 break
         
-            if _k % 1 == 0:
+            if _k % 9 == 0:
                 plt.figure(1)
                 plt.cla()
                 plt.imshow(self.img)
                 plt.imshow(self.er, 'gray', alpha=.3)
                 plt.imshow(self.er_Fa * (self.er), vmax=1.3, cmap=mts.colorMapAlpha(plt))
-                for i, ph in enumerate(_phis):
+                for i, ph in enumerate(new_phis):
+                    _pr = np.where(ph > 0)
+                    if len(_pr[0]) == self.m * self.n:
+                        continue
                     plt.contour(ph, levels=[0], colors=clrs[i])
                 plt.title(f'iter = {_k:d}')
                 # plt.show()
@@ -121,7 +128,7 @@ class PostProc():
 
     def setReg(self, phis):
         res = np.zeros_like(self.er)
-        for i, phi in phis:
+        for i, phi in enumerate(phis):
             res = np.where(phi < 0, i, res)
 
         return res
@@ -324,7 +331,6 @@ class PostProc():
 
         self.dict['er_Fa'] = self.er_Fa
         self.dict['tot_lbl'] = self.tot_lbl
-        self.dict['phi_res'] = self.phi_res
         self.dict['res'] = self.res
 
 
