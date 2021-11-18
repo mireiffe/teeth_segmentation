@@ -167,7 +167,7 @@ class PostProc():
     @staticmethod
     def removeBG(lbl):
 
-        if len(np.unique(lbl[[0, -1], :])) == 1 and len(np.unique(lbl[:, [0, -1]])):
+        if len(np.unique(lbl[[0, -1], :])) == 1 and len(np.unique(lbl[:, [0, -1]])) == 1:
             if np.unique(lbl[[0, -1], :])[0] == np.unique(lbl[:, [0, -1]])[0]:
                 l = np.unique(lbl[[0, -1], :])[0]
                 res = np.copy(lbl)
@@ -181,26 +181,34 @@ class PostProc():
 
         m, n = img.shape[:2]
 
+        bdr = np.zeros_like(lbl)
+        bdr[3:-3, 3:-3] = 1
+
         reg_nkapp = []
         reg_kapp = []
         for l in np.unique(lbl):
             if l < 0: continue
             _reg = np.where(lbl == l, 1., 0.)
+            if _reg.sum() < m*n / 1000:
+                reg_nkapp.append(l)
+                continue
+
             
             # _phi = skfmm.distance(.5 - _reg)
             _phi = Rein.getSDF(.5 - _reg)
             _kapp = mts.kappa(_phi, mode=0)[0]
             _kapp = mts.gaussfilt(_kapp, sig=.5)
 
-            reg_cal = np.abs(_phi) < 1.5
+            reg_cal = (np.abs(_phi) < 1.5) * bdr
             kapp_p = np.where(_kapp > 1E-04, 1, 0)
             kapp_n = np.where(_kapp < -1E-04, 1, 0)
 
             n_kapp_p = (kapp_p * reg_cal).sum()
             n_kapp_n = (kapp_n * reg_cal).sum()
 
-            reg_kapp.append(n_kapp_p - n_kapp_n)
-            if n_kapp_p < n_kapp_n + (m**2 + n**2)**.5 / 50:
+            reg_kapp.append((n_kapp_p - n_kapp_n))
+            # reg_kapp.append((n_kapp_p - n_kapp_n) / (reg_cal.sum()))
+            if n_kapp_p < n_kapp_n + (m**2 + n**2)**.5 / 25:
                 reg_nkapp.append(l)
 
         mu_img = np.mean(img, where=np.where(img==0, False, True))
@@ -216,15 +224,17 @@ class PostProc():
     def regInertia(self, lbl):
         Rein = Reinitial(dt=.1, width=5)
 
-        plt.figure()
-        plt.imshow(self.img)
-        # for l, _ in enumerate(self.phi_res):
-        for l in np.unique(lbl):
-            if len(np.where(self.phi_res[int(l)] < 0)[0]) >= 50 and l not in [7, 8, 11, 16]:
-                plt.contour(self.phi_res[int(l)], levels=[0], colors='g')
+        # plt.figure()
+        # plt.imshow(self.img)
+        # # for l, _ in enumerate(self.phi_res):
+        # for l in np.unique(lbl):
+        #     if len(np.where(self.phi_res[int(l)] < 0)[0]) >= 50 and l not in [7, 8, 11, 16]:
+        #         plt.contour(self.phi_res[int(l)], levels=[0], colors='g')
         reg_nsym = []
         eig_lst = []
         for l in np.unique(lbl):
+
+            # continue
             # if l < 0 or l not in [1, 11]: continue
             if l < 0: continue
             r_idx = np.where(lbl == l)
@@ -421,8 +431,8 @@ class PostProc():
             plt.imshow(_res, alpha=.4, cmap='rainbow_alpha')
         if contour is not None:
             Rein = Reinitial(dt=.1)
-            ReinKapp = ReinitialKapp(iter=10, mu=.05)
-            clrs = ['g'] * 100
+            ReinKapp = ReinitialKapp(iter=10, mu=.1)
+            clrs = ['lime'] * 100
             for i in range(int(np.max(contour))):
                 _reg = np.where(contour == i+1, -1., 1.)
                 for _i in range(10):
