@@ -57,7 +57,8 @@ class ThreeRegions():
 
         self.mu3_i, self.var3_i = np.zeros_like(self.phi), np.zeros_like(self.phi)
         self.mu3_o, self.var3_o = np.zeros_like(self.phi), np.zeros_like(self.phi)
-        idx_band = np.where(self.band)
+        # idx_band = np.where(self.band)
+        idx_band = np.where(np.abs(self.phi) < 2)
         for y, x in zip(*idx_band):
             x1, x2, y1, y2 = self.localReg(x, y)
             _img = self.img[y1:y2, x1:x2, ...].transpose((2, 0, 1))
@@ -84,20 +85,22 @@ class ThreeRegions():
             return np.exp(-(X - mu)**2 / 2 / (sig + mts.eps)**2) / np.sqrt(2 * np.pi) / (sig + mts.eps)
 
         _img = self.img.mean(axis=2)
-        P1_i = funPDF(_img, self.mu1_i, self.var1_i**.5)
-        P1_o = funPDF(_img, self.mu1_o, self.var1_o**.5)
-        F1 = np.sign(np.where(self.band, P1_i - P1_o, 0.))
+        # P1_i = funPDF(_img, self.mu1_i, self.var1_i**.5)
+        # P1_o = funPDF(_img, self.mu1_o, self.var1_o**.5)
+        # F1 = np.sign(np.where(self.band, P1_i - P1_o, 0.))
 
-        P2_i = funPDF(_img, self.mu2_i, self.var2_i**.5)
-        P2_o = funPDF(_img, self.mu2_o, self.var2_o**.5)
-        F2 = np.sign(np.where(self.band, P2_i - P2_o, 0.))
+        # P2_i = funPDF(_img, self.mu2_i, self.var2_i**.5)
+        # P2_o = funPDF(_img, self.mu2_o, self.var2_o**.5)
+        # F2 = np.sign(np.where(self.band, P2_i - P2_o, 0.))
 
         P3_i = funPDF(_img, self.mu3_i, self.var3_i**.5)
         P3_o = funPDF(_img, self.mu3_o, self.var3_o**.5)
         F3 = np.sign(np.where(self.band, P3_i - P3_o, 0.))
 
         # V2 = np.where(np.abs(self.mu3_i - self.mu3_o) < .1, 1, F3)
-        V2 = (np.where(np.abs(self.mu3_i - self.mu3_o) < .1, 1, F3) - 1)
+        # V2 = (np.where(np.abs(self.mu3_i - self.mu3_o) < .001, 1, F3) - 1)
+        # V2 = (np.where(np.abs(self.mu3_i - self.mu3_o) < .01, 0, F3) - 1/2)
+        V2 = (np.where(np.abs(self.mu3_i - self.mu3_o) < .05, 0, F3))
         # V2 = F3
 
         return V2

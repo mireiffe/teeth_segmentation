@@ -405,12 +405,41 @@ class CurveProlong():
                 _touch = add_reg * np.where(self.lbl_Lend == i, 0, self.er)
 
                 if (filled[i]) and (_touch.sum() > 0):
-                # if (_touch.sum() > 0):
-                    res += _res
-                    self.er = np.where(add_reg, 1, self.er)
-                    banned[i] = 1
-                    self.flag_end[i] = 0
+                    _lbl_er = label(self.er, background=1, connectivity=1)
+                    _add_lbl = np.unique(add_reg * _lbl_er)
+                    _pre_er = np.where(add_reg, 1., self.er)
+                    _lbl_per = label(_pre_er, background=1, connectivity=1)
 
+                    sz_lst = 0
+                    for al in _add_lbl:
+                        if al == 0: continue
+
+                        al_reg = np.where(_lbl_er == al, 1., 0.)
+                        al_lbl = label(al_reg * _lbl_per, background=0, connectivity=1)
+                        for alb in np.unique(al_lbl):
+                            if alb == 0: continue
+                            alb_reg = np.where(al_lbl == alb)
+                            sz_alb = len(alb_reg[0])
+
+                            tol_back = self.m * self.n / 1000
+                            if sz_alb < 3:
+                                continue
+                            elif sz_alb < tol_back:
+                                sz_lst += 1
+                                continue
+                            elif sz_alb < tol_back * 10:
+                                r_x, l_x = np.max(alb_reg[1]), np.min(alb_reg[1])
+                                r_y, l_y = np.max(alb_reg[0]), np.min(alb_reg[0])
+                                min_wid = np.minimum(np.abs(r_x - l_x) + 1, np.abs(r_y - l_y) + 1)
+                                if min_wid < self.wid_er:
+                                    sz_lst += 1
+                                    continue
+                    # if len(np.unique(al_lbl)) - sz_lst - 1 > 1: 
+                    if sz_lst == 0: 
+                        res += _res
+                        self.er = np.where(add_reg, 1., self.er)
+                        banned[i] = 1
+                        self.flag_end[i] = 0
         return 0
 
 if __name__ == '__main__':

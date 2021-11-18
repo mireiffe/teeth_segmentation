@@ -56,7 +56,10 @@ class Reinitial():
             if self.dim == 2 and img.ndim == 3:
                 phi = np.zeros_like(img)
                 for i in range(img.shape[-1]):
-                    phi[..., i] = skfmm.distance(img[..., i], dx=1)
+                    if len(np.where(img[..., i] < 0)[0]) == 0:
+                        phi[..., i] = img[..., i]
+                    else:
+                        phi[..., i] = skfmm.distance(img[..., i], dx=1)
             else:
                 phi = skfmm.distance(img, dx=1)
             if self.dim_stack == 0:

@@ -1,5 +1,6 @@
 from os import stat
 from os.path import join
+import time
 
 import cv2
 import pickle
@@ -8,6 +9,7 @@ import matplotlib.pyplot as plt
 from numpy.lib.arraysetops import unique
 
 from skimage.measure import label
+# from scipy.ndimage.measurements import center_of_mass as cenm
 import skfmm
 from sklearn.cluster import KMeans
 
@@ -22,7 +24,7 @@ class PostProc():
     eps = np.finfo(float).eps
     jet_alpha = mts.colorMapAlpha(plt)
     
-    def __init__(self, dict, dir_img) -> None:
+    def __init__(self, dict, dir_img, path_img) -> None:
         self.dir_img = dir_img
         self.dict = dict
         self.img = dict['img']
@@ -36,8 +38,16 @@ class PostProc():
         self.er_Fa = self.GADF.Er
         self.lbl_er =  label(self.er_Fa, background=0, connectivity=1)
 
-        self.phi_res = self.snake(self.phi0)
-        dict['phi_res'] = self.phi_res
+        if 'phi_res' in dict.keys():
+            self.phi_res = self.dict['phi_res']
+        else:
+            self.phi_res = self.snake(self.phi0)
+            self.dict['phi_res'] = self.phi_res
+            mts.saveFile(self.dict, path_img)
+            pass
+        # self.phi_res = self.snake(self.phi0)
+        # self.dict['phi_res'] = self.phi_res
+        # mts.saveFile(self.dict, path_img)
 
 
         # self.tot_lbl = self.zeroReg(self.lbl_fa)
@@ -47,16 +57,23 @@ class PostProc():
         self._saveSteps()
 
     def snake(self, phi0):
-        clrs = ['r', 'g', 'b', 'c', 'm', 'y', 'k'] * 10
         dt = 0.3
-        mu = .2
+        mu = 1
         n_phis = len(phi0)
+        cmap = plt.cm.get_cmap('gist_ncar', n_phis)
 
         # Rein = Reinitial(dt=.2, width=4, tol=0.01, dim_stack=0, fmm=True)
         Rein = Reinitial(dt=.2, width=4, tol=0.01, dim_stack=0)
         teg = [ThreeRegions(self.img) for nph in range(n_phis)]
 
         _phis = np.copy(phi0)
+
+        stop_reg = np.ones_like(self.er)
+        stop_reg[2:-2, 2:-2] = 0
+        # oma = cv2.dilate(self.er_Fa * self.er, kernel=np.ones((3, 3)), iterations=1)
+        oma = self.er_Fa * self.er
+        omc = (1 - oma) * (1 - stop_reg)
+        oms = (self.er - oma) * (1 - stop_reg) 
 
         _k = 0
         while True:
@@ -69,43 +86,46 @@ class PostProc():
             all_regs = regs.sum(axis=0)
             _Fc = (- (all_regs - regs) - 1) * (1 - self.er * self.er_Fa)
 
+            # _st = time.time()
             for _i in range(n_phis):
+                # __st = time.time()
                 teg[_i].setting(_phis[_i])
+                # print(time.time() - __st)
+            # print(f'total time: {time.time() - _st}')
 
             gx, gy = mts.imgrad(_phis.transpose((1, 2, 0)))
-            _Fa = - (gx.transpose((2, 0, 1)) * self.Fa[..., 1] + gy.transpose((2, 0, 1)) * self.Fa[..., 0]) * self.er_Fa * self.er
+            _Fa = - (gx.transpose((2, 0, 1)) * self.Fa[..., 1] + gy.transpose((2, 0, 1)) * self.Fa[..., 0])
             _Fb = np.array([- tg.force() for tg in teg])
 
-            kap = mts.kappa(_phis.transpose((1, 2, 0)))[0].transpose((2, 0, 1)) * (np.abs(_phis) < 5)
-            _F = _Fa + mts.gaussfilt((_Fb).transpose((1, 2, 0)), .5).transpose((2, 0, 1)) * (self.er - self.er_Fa * self.er) + _Fc * (1 - self.er * self.er_Fa) + mu * kap
-            # _F = _Fa + _Fb + _Fc  + mu * kap
-            # _F = (_Fa + _Fb) * cal_regs + _Fo + mu * kap.transpose((2, 0, 1))
-            # new_phis = np.where(np.abs(_phis) < 10, _phis + dt * _F, _phis)
+            kap = mts.kappa(_phis.transpose((1, 2, 0)))[0].transpose((2, 0, 1))
+            # _F = _Fa*oma + mts.gaussfilt((_Fb).transpose((1, 2, 0)), .5).transpose((2, 0, 1)) * oms + _Fc * omc + mu * kap
+            # _F = (_Fa + 5*mu*kap)*oma + (_Fc + mu*kap)*omc
+            _F = (_Fa)*oma + mts.gaussfilt((_Fb).transpose((1, 2, 0)), 1).transpose((2, 0, 1)) * oms + (_Fc)*omc + mu*kap
             new_phis = _phis + dt * _F
 
             err = np.abs(new_phis - _phis).sum() / new_phis.size
             if err < 1E-04 or _k > 200:
+            # if err < 1E-04 or _k > 1:
                 break
         
-            if _k % 9 == 0:
+            if _k in [1, 2] or _k % 9 == 0:
                 plt.figure(1)
                 plt.cla()
                 plt.imshow(self.img)
-                plt.imshow(self.er, 'gray', alpha=.3)
-                plt.imshow(self.er_Fa * (self.er), vmax=1.3, cmap=mts.colorMapAlpha(plt))
+                plt.imshow(self.er, mts.colorMapAlpha(plt), vmax=2)
+                plt.imshow(oma, vmax=1.3, cmap=mts.colorMapAlpha(plt))
                 for i, ph in enumerate(new_phis):
                     _pr = np.where(ph > 0)
                     if len(_pr[0]) == self.m * self.n:
                         continue
-                    plt.contour(ph, levels=[0], colors=clrs[i])
+                    plt.contour(ph, levels=[0], colors=[cmap(i)])
                 plt.title(f'iter = {_k:d}')
                 # plt.show()
                 plt.pause(.1)
 
             _phis = new_phis
 
-        lbls = np.arange(1, new_phis.shape[-1] + 1)
-        return np.dot(np.where(new_phis < 0, 1., 0.), lbls)
+        return new_phis
 
     def labeling(self, del_tol=None):
         '''
@@ -127,15 +147,18 @@ class PostProc():
         self.phi = np.where((self.phi > 0) * (self.er < .5), -1, self.phi)
 
     def setReg(self, phis):
-        res = np.zeros_like(self.er)
-        for i, phi in enumerate(phis):
-            res = np.where(phi < 0, i, res)
-
+        res = -np.ones_like(self.er)
+        i = 0
+        for phi in phis:
+            if len(np.where(phi < 0)[0]) > 0:
+                res = np.where(phi < 0, i, res)
+                i += 1
         return res
 
     def regClass(self):
         lbl_kapp = self.regClassKapp(self.img, self.tot_lbl)
-        cand_rm = self.candVLine(lbl_kapp)
+        lbl_intia = self.regInertia(lbl_kapp)
+        cand_rm = self.candVLine(lbl_intia)
         lbl_vl = self.regClassVLine(self.img, lbl_kapp, cand_rm)
         lbl_sd = self.removeSide(self.img, lbl_vl)
         lbl_sd2 = self.removeBG(lbl_sd)
@@ -154,9 +177,12 @@ class PostProc():
 
     @staticmethod
     def regClassKapp(img, lbl):
-        Rein = Reinitial(dt=.1, width=5)
+        Rein = Reinitial(dt=0.1, width=10, tol=0.01)
+
+        m, n = img.shape[:2]
 
         reg_nkapp = []
+        reg_kapp = []
         for l in np.unique(lbl):
             if l < 0: continue
             _reg = np.where(lbl == l, 1., 0.)
@@ -173,7 +199,8 @@ class PostProc():
             n_kapp_p = (kapp_p * reg_cal).sum()
             n_kapp_n = (kapp_n * reg_cal).sum()
 
-            if n_kapp_p < n_kapp_n:
+            reg_kapp.append(n_kapp_p - n_kapp_n)
+            if n_kapp_p < n_kapp_n + (m**2 + n**2)**.5 / 50:
                 reg_nkapp.append(l)
 
         mu_img = np.mean(img, where=np.where(img==0, False, True))
@@ -184,6 +211,95 @@ class PostProc():
             _mu_r = np.mean(img.transpose((2, 0, 1)), where=_reg)
             if _mu_r <= mu_img:
                 res = np.where(lbl == rnk, -1., res)
+        return res
+
+    def regInertia(self, lbl):
+        Rein = Reinitial(dt=.1, width=5)
+
+        plt.figure()
+        plt.imshow(self.img)
+        # for l, _ in enumerate(self.phi_res):
+        for l in np.unique(lbl):
+            if len(np.where(self.phi_res[int(l)] < 0)[0]) >= 50 and l not in [7, 8, 11, 16]:
+                plt.contour(self.phi_res[int(l)], levels=[0], colors='g')
+        reg_nsym = []
+        eig_lst = []
+        for l in np.unique(lbl):
+            # if l < 0 or l not in [1, 11]: continue
+            if l < 0: continue
+            r_idx = np.where(lbl == l)
+            # r_idx = np.where(self.phi_res[int(l)]<0)
+
+            # y and x order
+            cenm = np.sum(r_idx, axis=1) / len(r_idx[0])
+            cen_idx = r_idx[0] - cenm[0], r_idx[1] - cenm[1]
+
+            # skness1 = np.sum(cen_idx[0]**3) / len(r_idx[0]), np.sum(cen_idx[1]**3) / len(r_idx[0])
+            # skness2 = np.sum(cen_idx[0]**2) / len(r_idx[0]), np.sum(cen_idx[1]**2) / len(r_idx[0])
+            # skness = skness1 / skness2**1.5
+
+            # print([l, np.sqrt(np.power(skness, 2).sum())])
+
+            Ixx = np.sum(cen_idx[0]**2)
+            Iyy = np.sum(cen_idx[1]**2)
+            Ixy = -np.sum(cen_idx[0]*cen_idx[1])
+
+            intiaT = [[Ixx, Ixy], [Ixy, Iyy]]
+
+            D, Q = mts.sortEig(intiaT)
+
+            lpx_v = Q[1, 1] / Q[0, 1]
+
+            # plt.figure()
+            # # plt.quiver([cenm[1], cenm[1]], [cenm[0], cenm[0]], Q[0, :], Q[1, :], angles='xy', color='black')
+            # plt.imshow(np.where(lbl == l, 1, 0), mts.colorMapAlpha(plt))
+            # plt.quiver([cenm[1]], [cenm[0]], Q[0, 0], Q[1, 0], angles='xy', color='black')
+            # plt.quiver([cenm[1]], [cenm[0]], Q[0, 1], Q[1, 1], angles='xy', color='blue')
+
+            eig_lst.append(D[0] / D[1])
+
+
+            ### meetting
+            temp = np.where(lbl == l, 1, 0)
+            tempp = np.zeros_like(temp)
+            m, n = tempp.shape
+
+            for x in range(n):
+                for y in range(m):
+                    xy = np.array([x - cenm[1], y - cenm[0]])
+                    nxy = (np.matmul(Q.T, xy))
+                    # nxy = (np.matmul(np.array([[1/np.sqrt(2), 1/np.sqrt(2)], [-1/np.sqrt(2), 1/np.sqrt(2)]]), xy))
+                    try:
+                        yy = np.clip(np.round(nxy[1] + cenm[0]).astype(int), 0, m)
+                        xx = np.clip(np.round(nxy[0] + cenm[1]).astype(int), 0, n)
+                        if temp[yy, xx]:
+                            tempp[y, x] = 1
+                    except:
+                        pass
+            QQ = np.matmul(Q.T, Q)
+            # plt.figure()
+            # plt.imshow(tempp, mts.colorMapAlpha(plt))
+            # plt.quiver([cenm[1]], [cenm[0]], QQ[0, 0], QQ[1, 0], angles='xy', color='black')
+            # plt.quiver([cenm[1]], [cenm[0]], QQ[0, 1], QQ[1, 1], angles='xy', color='blue')
+
+            a_idx = np.where(tempp == 1)
+            acen_idx = a_idx[0] - cenm[0], a_idx[1] - cenm[1]
+            skness1 = np.sum(acen_idx[0]**3) / len(a_idx[0]), np.sum(acen_idx[1]**3) / len(a_idx[0])
+            sig2 = np.sum(acen_idx[0]**2) / len(a_idx[0]), np.sum(acen_idx[1]**2) / len(a_idx[0])
+            skness = skness1[0] / sig2[0]**1.5, skness1[1] / sig2[1]**1.5
+
+            print([l, skness])
+
+
+        # plt.show()
+
+        res = np.copy(lbl)
+        # for rns in reg_nsym:
+        #     res = np.where(lbl == rns, -1., res)
+
+
+
+
         return res
 
     @staticmethod
@@ -306,7 +422,7 @@ class PostProc():
         if contour is not None:
             Rein = Reinitial(dt=.1)
             ReinKapp = ReinitialKapp(iter=10, mu=.05)
-            clrs = ['r'] * 100
+            clrs = ['g'] * 100
             for i in range(int(np.max(contour))):
                 _reg = np.where(contour == i+1, -1., 1.)
                 for _i in range(10):
@@ -333,6 +449,8 @@ class PostProc():
         self.dict['tot_lbl'] = self.tot_lbl
         self.dict['res'] = self.res
 
+        pass
+
 
 class ReinitialKapp(Reinitial):
     def __init__(self, dt:float=0.1, width:float=5, tol:float=1E-02, iter:int=None, dim:int=2, debug=False, fmm=False, mu=0.1) -> np.ndarray:
@@ -340,6 +458,8 @@ class ReinitialKapp(Reinitial):
         self.mu = mu
 
     def update(self, phi):
+        m, n = phi.shape[:2]
+
         bd, fd = self.imgrad(phi, self.dim)
 
         # abs(a) and a+ in the paper
@@ -366,7 +486,7 @@ class ReinitialKapp(Reinitial):
         
         # for numerical stabilities, sign should be updated
         _sign0 = self.approx_sign(phi)
-        kapp = mts.gaussfilt(mts.kappa(phi)[0], sig=.5)
+        kapp = mts.gaussfilt(mts.kappa(phi)[0], sig=np.ceil(m*n/300000))
         # kapp = mts.kappa(phi)[0]
         _phi = phi - self.dt * (_sign0 * _G - self.mu * kapp)
         return _phi
