@@ -58,20 +58,20 @@ class CurveProlong():
 
         ######################################
         ################################
-        # plt.figure()
+        plt.figure()
         # plt.imshow(self.er, 'gray')
         # # plt.imshow(self.lbl_Send[32:224, 18:195] > .5, mts.colorMapAlpha(plt))
-        # # plt.imshow(self.er[32:224, 18:195], 'gray')
+        plt.imshow(self.er[32:224, 18:195], 'gray')
         # # plt.imshow(self.lbl_Send[32:224, 18:195] > .5, mts.colorMapAlpha(plt))
         # for i, idx in enumerate(self.ind_end):
-        #     if i in [2, 1]:
+        #     if i in [11]:
         #         continue
         #     xx, yy = list(zip(*idx))
             
-        #     # plt.plot(np.array(yy[1::10]) - 19, np.array(xx[1::10]) - 33, 'r-')
-        #     # plt.plot(yy[0] - 19, xx[0] - 33, 'b', marker='o', markersize=3)
-        #     plt.plot(np.array(yy[0:10]), np.array(xx[0:10]), 'r-')
-        #     plt.plot(yy[0], xx[0], 'b', marker='o', markersize=3)
+        #     plt.plot(np.array(yy[1::10]) - 19, np.array(xx[1::10]) - 33, 'r-')
+        #     plt.plot(yy[0] - 19, xx[0] - 33, 'b', marker='o', markersize=3)
+        #     # plt.plot(np.array(yy[0:10]), np.array(xx[0:10]), 'r-')
+            # plt.plot(yy[0], xx[0], 'b', marker='o', markersize=5)
         # plt.axis('off')
         # plt.savefig('forpaper/Fig8_curve.pdf', dpi=1024, bbox_inches='tight', pad_inches=0)
         

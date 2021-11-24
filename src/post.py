@@ -84,7 +84,7 @@ class PostProc():
             _dist = 1
             regs = np.where(_phis < _dist, _phis - _dist, 0)
             all_regs = regs.sum(axis=0)
-            _Fc = (- (all_regs - regs) - 1) * (1 - self.er * self.er_Fa)
+            _Fc = (- (all_regs - regs) - 1)
 
             # _st = time.time()
             for _i in range(n_phis):
@@ -177,6 +177,7 @@ class PostProc():
 
     @staticmethod
     def regClassKapp(img, lbl):
+        return lbl
         Rein = Reinitial(dt=0.1, width=10, tol=0.01)
 
         m, n = img.shape[:2]
@@ -224,8 +225,10 @@ class PostProc():
     def regInertia(self, lbl):
         Rein = Reinitial(dt=.1, width=5)
 
-        # plt.figure()
-        # plt.imshow(self.img)
+        plt.figure()
+        plt.imshow(self.img)
+        for ph in self.phi_res:
+            plt.contour(ph, levels=[0], colors='lime')
         # # for l, _ in enumerate(self.phi_res):
         # for l in np.unique(lbl):
         #     if len(np.where(self.phi_res[int(l)] < 0)[0]) >= 50 and l not in [7, 8, 11, 16]:
@@ -268,37 +271,38 @@ class PostProc():
 
             eig_lst.append(D[0] / D[1])
 
+            plt.text(cenm[1], cenm[0], f'{D[0] / D[1]:.2f}', color='b')
 
-            ### meetting
-            temp = np.where(lbl == l, 1, 0)
-            tempp = np.zeros_like(temp)
-            m, n = tempp.shape
+            # ### meetting
+            # temp = np.where(lbl == l, 1, 0)
+            # tempp = np.zeros_like(temp)
+            # m, n = tempp.shape
 
-            for x in range(n):
-                for y in range(m):
-                    xy = np.array([x - cenm[1], y - cenm[0]])
-                    nxy = (np.matmul(Q.T, xy))
-                    # nxy = (np.matmul(np.array([[1/np.sqrt(2), 1/np.sqrt(2)], [-1/np.sqrt(2), 1/np.sqrt(2)]]), xy))
-                    try:
-                        yy = np.clip(np.round(nxy[1] + cenm[0]).astype(int), 0, m)
-                        xx = np.clip(np.round(nxy[0] + cenm[1]).astype(int), 0, n)
-                        if temp[yy, xx]:
-                            tempp[y, x] = 1
-                    except:
-                        pass
-            QQ = np.matmul(Q.T, Q)
+            # for x in range(n):
+            #     for y in range(m):
+            #         xy = np.array([x - cenm[1], y - cenm[0]])
+            #         nxy = (np.matmul(Q.T, xy))
+            #         # nxy = (np.matmul(np.array([[1/np.sqrt(2), 1/np.sqrt(2)], [-1/np.sqrt(2), 1/np.sqrt(2)]]), xy))
+            #         try:
+            #             yy = np.clip(np.round(nxy[1] + cenm[0]).astype(int), 0, m)
+            #             xx = np.clip(np.round(nxy[0] + cenm[1]).astype(int), 0, n)
+            #             if temp[yy, xx]:
+            #                 tempp[y, x] = 1
+            #         except:
+            #             pass
+            # QQ = np.matmul(Q.T, Q)
             # plt.figure()
             # plt.imshow(tempp, mts.colorMapAlpha(plt))
             # plt.quiver([cenm[1]], [cenm[0]], QQ[0, 0], QQ[1, 0], angles='xy', color='black')
             # plt.quiver([cenm[1]], [cenm[0]], QQ[0, 1], QQ[1, 1], angles='xy', color='blue')
 
-            a_idx = np.where(tempp == 1)
-            acen_idx = a_idx[0] - cenm[0], a_idx[1] - cenm[1]
-            skness1 = np.sum(acen_idx[0]**3) / len(a_idx[0]), np.sum(acen_idx[1]**3) / len(a_idx[0])
-            sig2 = np.sum(acen_idx[0]**2) / len(a_idx[0]), np.sum(acen_idx[1]**2) / len(a_idx[0])
-            skness = skness1[0] / sig2[0]**1.5, skness1[1] / sig2[1]**1.5
+            # a_idx = np.where(tempp == 1)
+            # acen_idx = a_idx[0] - cenm[0], a_idx[1] - cenm[1]
+            # skness1 = np.sum(acen_idx[0]**3) / len(a_idx[0]), np.sum(acen_idx[1]**3) / len(a_idx[0])
+            # sig2 = np.sum(acen_idx[0]**2) / len(a_idx[0]), np.sum(acen_idx[1]**2) / len(a_idx[0])
+            # skness = skness1[0] / sig2[0]**1.5, skness1[1] / sig2[1]**1.5
 
-            print([l, skness])
+            # print([l, skness])
 
 
         # plt.show()

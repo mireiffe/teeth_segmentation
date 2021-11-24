@@ -4,6 +4,7 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+
         {
             "name": "Python: Current File",
             "type": "python",
@@ -11,10 +12,10 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "args": [
-                "--post_seg",
+                // "--post_seg",
                 // "--ALL",
                 // "--make_er",
-                // "--trim_er",
+                "--trim_er",
                 // "--img", "-3",
                 "--device", "cuda", "1",
                 "--cfg", "cfg/inference.ini"

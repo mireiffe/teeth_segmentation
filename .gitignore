@@ -6,3 +6,7 @@ data
 __pycache__
 *.mp4
 forpaper
+
+
+*.pdf
+*.mat
