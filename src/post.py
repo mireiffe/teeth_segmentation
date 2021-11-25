@@ -155,9 +155,12 @@ class PostProc():
 
     def regClass(self):
         lbl_kapp = self.regClassKapp(self.img, self.tot_lbl)
-        lbl_intia = self.regInertia(lbl_kapp)
-        cand_rm = self.candVLine(lbl_intia)
-        lbl_vl = self.regClassVLine(self.img, lbl_kapp, cand_rm)
+
+        lbl_intia = self.regInertia(self.tot_lbl)
+
+        cand_rm = self.candVLine(self.tot_lbl)
+        lbl_vl = self.regClassVLine(self.img, self.tot_lbl, cand_rm)
+
         lbl_sd = self.removeSide(self.img, lbl_vl)
         lbl_sd2 = self.removeBG(lbl_sd)
         return lbl_sd2
@@ -174,7 +177,6 @@ class PostProc():
         return res
 
     def regClassKapp(self, img, lbl):
-        return lbl
         Rein = Reinitial(dt=0.1, width=10, tol=0.01)
 
         m, n = img.shape[:2]
@@ -216,6 +218,9 @@ class PostProc():
             if n_kapp_p < n_kapp_n + (m**2 + n**2)**.5 / 25:
                 reg_nkapp.append(l)
 
+        mu_img = np.mean(img, where=np.where(img==0, False, True))
+        var_img = np.var(img, where=np.where(img==0, False, True))
+
         ####
         import matplotlib.patheffects as PathEffects
         plt.figure()
@@ -232,7 +237,9 @@ class PostProc():
             tt = f'{reg_rkapp[int(l)]:.2f}'
             if reg_kapp[int(l)] < .1:
                 txt = plt.text(cenm_lst[l][1], cenm_lst[l][0], tt, color='r', fontsize=9)
-                plt.imshow(self.phi_res[int(l)] < 0, vmax=2, cmap=mts.colorMapAlpha(plt))
+                _mu_r = np.mean(img.transpose((2, 0, 1)), where=self.phi_res[int(l)] < 0)
+                if _mu_r <= mu_img:
+                    plt.imshow(self.phi_res[int(l)] < 0, vmax=2, cmap=mts.colorMapAlpha(plt))
             else:
                 txt = plt.text(cenm_lst[l][1], cenm_lst[l][0], tt, color='black', fontsize=9)
             txt.set_path_effects([PathEffects.withStroke(linewidth=3, foreground='w')])
@@ -240,9 +247,6 @@ class PostProc():
         plt.title(f'Tol = {.1:.2f}')
         ####
 
-
-        mu_img = np.mean(img, where=np.where(img==0, False, True))
-        var_img = np.var(img, where=np.where(img==0, False, True))
         res = np.copy(lbl)
         for rnk in reg_nkapp:
             _reg = (lbl == rnk)
@@ -252,7 +256,6 @@ class PostProc():
         return res
 
     def regInertia(self, lbl):
-        return lbl
         eig_lst = {}
         rat_lst = {}
         cenm_lst = {}
@@ -280,6 +283,9 @@ class PostProc():
 
         mean_rat = np.mean(list(rat_lst.values()))
         var_rat = np.var(list(rat_lst.values()))
+
+        mu_img = np.mean(self.img, where=np.where(self.img==0, False, True))
+        var_img = np.var(self.img, where=np.where(self.img==0, False, True))
 
         ###
         import matplotlib.patheffects as PathEffects
@@ -311,7 +317,9 @@ class PostProc():
             txt1.set_path_effects([PathEffects.withStroke(linewidth=3, foreground='w')])
             txt2.set_path_effects([PathEffects.withStroke(linewidth=3, foreground='w')])
             if (rat_lst[l] >= mean_rat) or (np.arccos(np.abs(eig_lst[l][1][0, 1]))*180/np.pi <  20):
-                plt.imshow(self.phi_res[int(l)] < 0, vmax=2, cmap=mts.colorMapAlpha(plt))
+                _mu_r = np.mean(self.img.transpose((2, 0, 1)), where=self.phi_res[int(l)] < 0)
+                if _mu_r <= mu_img:
+                    plt.imshow(self.phi_res[int(l)] < 0, vmax=2, cmap=mts.colorMapAlpha(plt))
         plt.title(f'Average = {mean_rat:.2f}')
 
         cenm_cnt = 0
@@ -395,6 +403,7 @@ class PostProc():
         # init_k = np.array([[100, 0, 0], p_lab[m_a[0], :], (p_lab[m_a[0], :] + [100, 0, 0])/ 2])
         init_k = np.array([[100, 0, 0], lab[m_a[0], m_a[1], :], [50, 0, lab[m_b[0], m_b[1], 2]]])
 
+        rmv_lst = []
         for l in cand:
             if l < 0: continue
             _reg = np.where(lbl == l)
@@ -440,6 +449,7 @@ class PostProc():
             
             if int(stats.mode(modes_reg)[0]) == 1:
                 res = np.where(res == l, -1, res)
+                rmv_lst.append(l)
 
         ####
         cenm_lst = {}
@@ -465,15 +475,9 @@ class PostProc():
 
             if l < 0: continue
             # tt = f'{reg_kapp[int(l)]:.2f}'
-            tt = f'{reg_rkapp[int(l)]:.2f}'
-            if reg_kapp[int(l)] < .1:
-                txt = plt.text(cenm_lst[l][1], cenm_lst[l][0], tt, color='r', fontsize=9)
+            if int(l) in rmv_lst:
                 plt.imshow(self.phi_res[int(l)] < 0, vmax=2, cmap=mts.colorMapAlpha(plt))
-            else:
-                txt = plt.text(cenm_lst[l][1], cenm_lst[l][0], tt, color='black', fontsize=9)
-            txt.set_path_effects([PathEffects.withStroke(linewidth=3, foreground='w')])
         # plt.title(f'Average = {(m**2 + n**2)**.5 / 25:.2f}')
-        plt.title(f'Tol = {.1:.2f}')
         ####
 
         return res
