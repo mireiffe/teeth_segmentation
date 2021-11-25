@@ -148,11 +148,9 @@ class PostProc():
 
     def setReg(self, phis):
         res = -np.ones_like(self.er)
-        i = 0
-        for phi in phis:
+        for l, phi in enumerate(phis):
             if len(np.where(phi < 0)[0]) > 0:
-                res = np.where(phi < 0, i, res)
-                i += 1
+                res = np.where(phi < 0, l, res)
         return res
 
     def regClass(self):
@@ -175,8 +173,7 @@ class PostProc():
 
         return res
 
-    @staticmethod
-    def regClassKapp(img, lbl):
+    def regClassKapp(self, img, lbl):
         return lbl
         Rein = Reinitial(dt=0.1, width=10, tol=0.01)
 
@@ -186,13 +183,19 @@ class PostProc():
         bdr[3:-3, 3:-3] = 1
 
         reg_nkapp = []
-        reg_kapp = []
+        reg_kapp = {}
+        reg_rkapp = {}
+        cenm_lst = {}
         for l in np.unique(lbl):
             if l < 0: continue
             _reg = np.where(lbl == l, 1., 0.)
             if _reg.sum() < m*n / 1000:
                 reg_nkapp.append(l)
                 continue
+            
+            r_idx = np.where(lbl == l)
+            cenm = np.sum(r_idx, axis=1) / len(r_idx[0])
+            cenm_lst[l] = cenm
 
             
             # _phi = skfmm.distance(.5 - _reg)
@@ -207,10 +210,36 @@ class PostProc():
             n_kapp_p = (kapp_p * reg_cal).sum()
             n_kapp_n = (kapp_n * reg_cal).sum()
 
-            reg_kapp.append((n_kapp_p - n_kapp_n))
+            reg_kapp[l] = (n_kapp_p - n_kapp_n)
+            reg_rkapp[l] = (n_kapp_p - n_kapp_n) / reg_cal.sum()
             # reg_kapp.append((n_kapp_p - n_kapp_n) / (reg_cal.sum()))
             if n_kapp_p < n_kapp_n + (m**2 + n**2)**.5 / 25:
                 reg_nkapp.append(l)
+
+        ####
+        import matplotlib.patheffects as PathEffects
+        plt.figure()
+        plt.imshow(self.img)
+        for ph in self.phi_res:
+            if (ph < 0).sum() >= self.m*self.n / 1000:
+                plt.contour(ph, levels=[0], colors='lime')
+        for l in np.unique(lbl):
+            if (self.phi_res[int(l)] < 0).sum() < self.m*self.n / 1000:
+                continue
+
+            if l < 0: continue
+            # tt = f'{reg_kapp[int(l)]:.2f}'
+            tt = f'{reg_rkapp[int(l)]:.2f}'
+            if reg_kapp[int(l)] < .1:
+                txt = plt.text(cenm_lst[l][1], cenm_lst[l][0], tt, color='r', fontsize=9)
+                plt.imshow(self.phi_res[int(l)] < 0, vmax=2, cmap=mts.colorMapAlpha(plt))
+            else:
+                txt = plt.text(cenm_lst[l][1], cenm_lst[l][0], tt, color='black', fontsize=9)
+            txt.set_path_effects([PathEffects.withStroke(linewidth=3, foreground='w')])
+        # plt.title(f'Average = {(m**2 + n**2)**.5 / 25:.2f}')
+        plt.title(f'Tol = {.1:.2f}')
+        ####
+
 
         mu_img = np.mean(img, where=np.where(img==0, False, True))
         var_img = np.var(img, where=np.where(img==0, False, True))
@@ -223,35 +252,18 @@ class PostProc():
         return res
 
     def regInertia(self, lbl):
-        Rein = Reinitial(dt=.1, width=5)
-
-        plt.figure()
-        plt.imshow(self.img)
-        for ph in self.phi_res:
-            plt.contour(ph, levels=[0], colors='lime')
-        # # for l, _ in enumerate(self.phi_res):
-        # for l in np.unique(lbl):
-        #     if len(np.where(self.phi_res[int(l)] < 0)[0]) >= 50 and l not in [7, 8, 11, 16]:
-        #         plt.contour(self.phi_res[int(l)], levels=[0], colors='g')
-        reg_nsym = []
-        eig_lst = []
+        return lbl
+        eig_lst = {}
+        rat_lst = {}
+        cenm_lst = {}
         for l in np.unique(lbl):
 
-            # continue
-            # if l < 0 or l not in [1, 11]: continue
             if l < 0: continue
             r_idx = np.where(lbl == l)
-            # r_idx = np.where(self.phi_res[int(l)]<0)
 
             # y and x order
             cenm = np.sum(r_idx, axis=1) / len(r_idx[0])
             cen_idx = r_idx[0] - cenm[0], r_idx[1] - cenm[1]
-
-            # skness1 = np.sum(cen_idx[0]**3) / len(r_idx[0]), np.sum(cen_idx[1]**3) / len(r_idx[0])
-            # skness2 = np.sum(cen_idx[0]**2) / len(r_idx[0]), np.sum(cen_idx[1]**2) / len(r_idx[0])
-            # skness = skness1 / skness2**1.5
-
-            # print([l, np.sqrt(np.power(skness, 2).sum())])
 
             Ixx = np.sum(cen_idx[0]**2)
             Iyy = np.sum(cen_idx[1]**2)
@@ -261,58 +273,85 @@ class PostProc():
 
             D, Q = mts.sortEig(intiaT)
 
-            lpx_v = Q[1, 1] / Q[0, 1]
-
-            # plt.figure()
-            # # plt.quiver([cenm[1], cenm[1]], [cenm[0], cenm[0]], Q[0, :], Q[1, :], angles='xy', color='black')
-            # plt.imshow(np.where(lbl == l, 1, 0), mts.colorMapAlpha(plt))
-            # plt.quiver([cenm[1]], [cenm[0]], Q[0, 0], Q[1, 0], angles='xy', color='black')
-            # plt.quiver([cenm[1]], [cenm[0]], Q[0, 1], Q[1, 1], angles='xy', color='blue')
-
-            eig_lst.append(D[0] / D[1])
-
-            plt.text(cenm[1], cenm[0], f'{D[0] / D[1]:.2f}', color='b')
-
-            # ### meetting
-            # temp = np.where(lbl == l, 1, 0)
-            # tempp = np.zeros_like(temp)
-            # m, n = tempp.shape
-
-            # for x in range(n):
-            #     for y in range(m):
-            #         xy = np.array([x - cenm[1], y - cenm[0]])
-            #         nxy = (np.matmul(Q.T, xy))
-            #         # nxy = (np.matmul(np.array([[1/np.sqrt(2), 1/np.sqrt(2)], [-1/np.sqrt(2), 1/np.sqrt(2)]]), xy))
-            #         try:
-            #             yy = np.clip(np.round(nxy[1] + cenm[0]).astype(int), 0, m)
-            #             xx = np.clip(np.round(nxy[0] + cenm[1]).astype(int), 0, n)
-            #             if temp[yy, xx]:
-            #                 tempp[y, x] = 1
-            #         except:
-            #             pass
-            # QQ = np.matmul(Q.T, Q)
-            # plt.figure()
-            # plt.imshow(tempp, mts.colorMapAlpha(plt))
-            # plt.quiver([cenm[1]], [cenm[0]], QQ[0, 0], QQ[1, 0], angles='xy', color='black')
-            # plt.quiver([cenm[1]], [cenm[0]], QQ[0, 1], QQ[1, 1], angles='xy', color='blue')
-
-            # a_idx = np.where(tempp == 1)
-            # acen_idx = a_idx[0] - cenm[0], a_idx[1] - cenm[1]
-            # skness1 = np.sum(acen_idx[0]**3) / len(a_idx[0]), np.sum(acen_idx[1]**3) / len(a_idx[0])
-            # sig2 = np.sum(acen_idx[0]**2) / len(a_idx[0]), np.sum(acen_idx[1]**2) / len(a_idx[0])
-            # skness = skness1[0] / sig2[0]**1.5, skness1[1] / sig2[1]**1.5
-
-            # print([l, skness])
+            cenm_lst[l] = cenm
+            eig_lst[l] = (D, Q)
+            rat_lst[l] = D[0] / D[1]
 
 
-        # plt.show()
+        mean_rat = np.mean(list(rat_lst.values()))
+        var_rat = np.var(list(rat_lst.values()))
+
+        ###
+        import matplotlib.patheffects as PathEffects
+        plt.figure()
+        plt.imshow(self.img)
+        for ph in self.phi_res:
+            if (ph < 0).sum() >= self.m*self.n / 1000:
+                plt.contour(ph, levels=[0], colors='lime')
+        for l in np.unique(lbl):
+            if (self.phi_res[int(l)] < 0).sum() < self.m*self.n / 1000:
+                continue
+
+            if l < 0: continue
+            # plt.quiver(cenm_lst[l][1], cenm_lst[l][0], eig_lst[l][1][0, 0], eig_lst[l][1][1, 0], angles='xy', color='blue')
+            # plt.quiver(cenm_lst[l][1], cenm_lst[l][0], eig_lst[l][1][0, 1], eig_lst[l][1][1, 1], angles='xy', color='blue')
+            # tt = f'rat: {eig_lst[l][0][0] / eig_lst[l][0][1]:.2f}\nang: {np.arccos(np.abs(eig_lst[l][1][0, 1]))*180/np.pi:.2f}'
+            # txt = plt.text(cenm_lst[l][1], cenm_lst[l][0], tt, color='black', fontsize=9)
+            # txt.set_path_effects([PathEffects.withStroke(linewidth=3, foreground='w')])
+            tt1 = f'rat: {eig_lst[l][0][0] / eig_lst[l][0][1]:.2f}'
+            tt2 = f'ang: {np.arccos(np.abs(eig_lst[l][1][0, 1]))*180/np.pi:.1f}'
+            if rat_lst[l] >= mean_rat:
+                txt1 = plt.text(cenm_lst[l][1], cenm_lst[l][0], tt1, color='r', fontsize=9)
+            else:
+                txt1 = plt.text(cenm_lst[l][1], cenm_lst[l][0], tt1, color='black', fontsize=9)
+            if np.arccos(np.abs(eig_lst[l][1][0, 1]))*180/np.pi <  20:
+                txt2 = plt.text(cenm_lst[l][1], cenm_lst[l][0]+10, tt2, color='r', fontsize=9)
+            else:
+                txt2 = plt.text(cenm_lst[l][1], cenm_lst[l][0]+10, tt2, color='black', fontsize=9)
+            txt1.set_path_effects([PathEffects.withStroke(linewidth=3, foreground='w')])
+            txt2.set_path_effects([PathEffects.withStroke(linewidth=3, foreground='w')])
+            if (rat_lst[l] >= mean_rat) or (np.arccos(np.abs(eig_lst[l][1][0, 1]))*180/np.pi <  20):
+                plt.imshow(self.phi_res[int(l)] < 0, vmax=2, cmap=mts.colorMapAlpha(plt))
+        plt.title(f'Average = {mean_rat:.2f}')
+
+        cenm_cnt = 0
+        plt.figure()
+        plt.imshow(self.img)
+        for ph in self.phi_res:
+            if (ph < 0).sum() >= self.m*self.n / 1000:
+                plt.contour(ph, levels=[0], colors='lime')
+        for l in np.unique(lbl):
+            if (self.phi_res[int(l)] < 0).sum() < self.m*self.n / 1000:
+                continue
+            if l < 0: continue
+            plt.scatter(cenm_lst[l][1], cenm_lst[l][0], color='blue')
+            if (lbl[int(np.round(cenm_lst[l][0])), int(np.round(cenm_lst[l][1]))] != l):
+                plt.imshow(self.phi_res[int(l)] < 0, vmax=2, cmap=mts.colorMapAlpha(plt))
+                cenm_cnt += 1
+        plt.title(f'count = {cenm_cnt}')
+
+        cnt = 0
+        plt.figure()
+        plt.imshow(self.img)
+        for ph in self.phi_res:
+            plt.contour(ph, levels=[0], colors='lime')
+        for l in np.unique(lbl):
+
+            if l < 0: continue
+            if (rat_lst[l] > mean_rat) or (np.abs(eig_lst[l][1][0, 1]) >= np.cos(np.pi / 9)):
+                plt.imshow(self.phi_res[int(l)] < 0, vmax=2, cmap=mts.colorMapAlpha(plt))
+                txt = plt.text(cenm_lst[l][1], cenm_lst[l][0], f'{np.arccos(np.abs(eig_lst[l][1][0, 1]))*180/np.pi:.2f}', color='r', fontsize=9)
+                txt.set_path_effects([PathEffects.withStroke(linewidth=3, foreground='w')])
+                cnt += 1
+
+        plt.title(f'count = {cnt}')
+        ###
+
+
 
         res = np.copy(lbl)
         # for rns in reg_nsym:
         #     res = np.where(lbl == rns, -1., res)
-
-
-
 
         return res
 
@@ -340,8 +379,7 @@ class PostProc():
                 reg2bchck.append(l)
         return reg2bchck
 
-    @staticmethod
-    def regClassVLine(img, lbl, cand):
+    def regClassVLine(self, img, lbl, cand):
         from skimage import color
         from scipy import stats
 
@@ -402,6 +440,42 @@ class PostProc():
             
             if int(stats.mode(modes_reg)[0]) == 1:
                 res = np.where(res == l, -1, res)
+
+        ####
+        cenm_lst = {}
+        for l in np.unique(lbl):
+            if l < 0: continue
+            _reg = np.where(lbl == l, 1., 0.)
+            if _reg.sum() < self.m*self.n / 1000:
+                continue
+            
+            r_idx = np.where(lbl == l)
+            cenm = np.sum(r_idx, axis=1) / len(r_idx[0])
+            cenm_lst[l] = cenm
+
+        import matplotlib.patheffects as PathEffects
+        plt.figure()
+        plt.imshow(self.img)
+        for ph in self.phi_res:
+            if (ph < 0).sum() >= self.m*self.n / 1000:
+                plt.contour(ph, levels=[0], colors='lime')
+        for l in np.unique(lbl):
+            if (self.phi_res[int(l)] < 0).sum() < self.m*self.n / 1000:
+                continue
+
+            if l < 0: continue
+            # tt = f'{reg_kapp[int(l)]:.2f}'
+            tt = f'{reg_rkapp[int(l)]:.2f}'
+            if reg_kapp[int(l)] < .1:
+                txt = plt.text(cenm_lst[l][1], cenm_lst[l][0], tt, color='r', fontsize=9)
+                plt.imshow(self.phi_res[int(l)] < 0, vmax=2, cmap=mts.colorMapAlpha(plt))
+            else:
+                txt = plt.text(cenm_lst[l][1], cenm_lst[l][0], tt, color='black', fontsize=9)
+            txt.set_path_effects([PathEffects.withStroke(linewidth=3, foreground='w')])
+        # plt.title(f'Average = {(m**2 + n**2)**.5 / 25:.2f}')
+        plt.title(f'Tol = {.1:.2f}')
+        ####
+
         return res
 
     @staticmethod

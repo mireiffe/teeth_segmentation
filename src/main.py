@@ -117,11 +117,11 @@ if __name__=='__main__':
     imgs = args.imgs if args.imgs else [0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 20, 21]
     imgs = args.imgs if args.imgs else [4, 5, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 20, 21]
     imgs = args.imgs if args.imgs else [5, 8, 12, 17, 18]
-    imgs = args.imgs if args.imgs else [1]
+    imgs = args.imgs if args.imgs else [0]
 
     today = time.strftime("%y%m%d", time.localtime(time.time()))
-    # label_test = '1'
-    label_test = None
+    label_test = '1'
+    # label_test = None
     if label_test == None:
         dir_result = join('results', f'er_net/{today}/')
     else:

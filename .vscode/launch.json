@@ -12,10 +12,10 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "args": [
-                // "--post_seg",
+                "--post_seg",
                 // "--ALL",
                 // "--make_er",
-                "--trim_er",
+                // "--trim_er",
                 // "--img", "-3",
                 "--device", "cuda", "1",
                 "--cfg", "cfg/inference.ini"
