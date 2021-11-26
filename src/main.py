@@ -114,9 +114,9 @@ if __name__=='__main__':
         args.seg_lvset = True
         args.post_seg = True
 
-    imgs = args.imgs if args.imgs else [0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 20, 21]
-    imgs = args.imgs if args.imgs else [4, 5, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 20, 21]
-    imgs = args.imgs if args.imgs else [5, 8, 12, 17, 18]
+    # imgs = args.imgs if args.imgs else [0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 20, 21]
+    # imgs = args.imgs if args.imgs else [4, 5, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 20, 21]
+    imgs = args.imgs if args.imgs else [0, 1, 5, 8, 17, 18]
     imgs = args.imgs if args.imgs else [1]
 
     today = time.strftime("%y%m%d", time.localtime(time.time()))
