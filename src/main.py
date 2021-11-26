@@ -1,19 +1,16 @@
-import os
 from os.path import join
-import pickle
 import argparse
 import time
 
-import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from skimage.measure import label
 
 # custom libs
 from edge_region import EdgeRegion
-from balloon import Balloon
-from curve import CurveProlong
-from post import PostProc
+from refine import RefinePreER
+from snake import Snake
+from idreg import IdRegion
 import myTools as mts
 from reinitial import Reinitial
 
@@ -29,15 +26,18 @@ def get_args():
     parser.add_argument("--device", dest="device", nargs='+', type=str, default=0,
                              required=False, metavar="DVC",
                              help="name of dataset to use")
-    parser.add_argument("--make_er", dest="make_er",
+    parser.add_argument("--pre_er", dest="pre_er",
                              required=False, action='store_true',
                              help="Network inference for making edge region")
-    parser.add_argument("--trim_er", dest="trim_er",
+    parser.add_argument("--refine", dest="refine",
                              required=False, action='store_true',
-                             help="Trim the edge region")
-    parser.add_argument("--post_seg", dest="post_seg",
+                             help="Refinment of regions")
+    parser.add_argument("--snake", dest="snake",
                              required=False, action='store_true',
-                             help="Post process for segmentation")
+                             help="snake")
+    parser.add_argument("--id_reg", dest="id_reg",
+                             required=False, action='store_true',
+                             help="Idetification of regions")
     parser.add_argument("--ALL", dest="ALL",
                              required=False, action='store_true',
                              help="Do every process in a row")
@@ -46,73 +46,87 @@ def get_args():
                              help="configuration file")
     return parser.parse_args()
 
-
 class TeethSeg():
     def __init__(self, dir_result, num_img) -> None:
+        print(f'image {ni}, initiating...')
+
         self.dir_save = join(dir_result, f'{num_img:05d}/')
         mts.makeDir(self.dir_save)
         self.sts = mts.SaveTools(self.dir_save)
-        self.path_img = join(self.dir_save, f'{num_img:05d}.pth')
+        self.path_dict = join(self.dir_save, f'{num_img:05d}.pth')
 
         self.dt = {}
 
-    def make_er(self):
+    def getPER(self):
         '''
         Inference edge regions with a learned deep neural net
         '''
-        # edrg = EdgeRegion(args, ni, scaling=False)
+
         edrg = EdgeRegion(args, ni, scaling=True)
+        print(f'\tobtaining pre-edge region...')
+
         input, output = edrg.getEr()
-        _dt = {'img': input, 'output': output, 'net_er': np.where(output > .5, 1., 0.)}
+        pre_er = np.where(output > .5, 1., 0.)
 
+        _dt = {'img': input, 'output': output, 'pre_er': pre_er}
         self.dt.update(_dt)
-        mts.saveFile(self.dt, self.path_img)
+        mts.saveFile(self.dt, self.path_dict)
 
-        print(f"Edge region: {self.path_img} is saved!!")
-        
         self.sts.imshow(input, 'img.pdf')
         self.sts.imshow(output, 'output.pdf', cmap='gray')
-        self.sts.imshow(np.where(output > .5, 1., 0.), 'net_er.pdf', cmap='gray')
+        self.sts.imshow(pre_er, 'pre_er.pdf', cmap='gray')
 
         return 0
 
-    def trim_er(self):
-        _dt = mts.loadFile(self.path_img)
+    def refinePER(self):
+        _dt = mts.loadFile(self.path_dict)
         img = _dt['img']
-        net_er = _dt['net_er']
+        pre_er = _dt['pre_er']
+        CP = RefinePreER(img, pre_er, self.sts)
+        print(f'\trefining pre-edge region...')
 
-        CP = CurveProlong(img, net_er, self.dir_save)
-        _dt['er'] = CP.er
-        _dt['edge_er'] = CP.edge_er
-        _dt['repaired_sk'] = CP.sk
-
-        seg_er = CP.er
-        lbl_reg = label(seg_er, background=1, connectivity=1)
-
+        lbl_reg = label(CP.bar_er, background=1, connectivity=1)
         rein = Reinitial(dt=0.1, width=10, tol=0.01)
-        phis = [rein.getSDF(np.where(lbl_reg == l, -1., 1.)) for l in range(1, np.max(lbl_reg)+1)]
+        phi0 = [rein.getSDF(np.where(lbl_reg == l, -1., 1.)) 
+                for l in range(1, np.max(lbl_reg)+1)]
+                
+        _dt.update({
+            'bar_er': CP.bar_er, 'sk': CP.sk, 
+            'erfa': CP.erfa, 'gadf': CP.fa, 'phi0': phi0
+            })
+        mts.saveFile(_dt, self.path_dict)
 
-        _dt.update({'seg_er': seg_er, 'phi0': phis})
-        mts.saveFile(_dt, self.path_img)
-        plt.close('all')
-
+        self.sts.imcontour(CP.img, phi0, 'phi0.pdf')
         return 0
 
-    def post_seg(self):
-        _dt = mts.loadFile(self.path_img)
-        print(f'\rimage {ni}, post processing...')
-        postProc = PostProc(_dt, self.dir_save, self.path_img)
+    def snake(self):
+        _dt = mts.loadFile(self.path_dict)
+        snk = Snake(_dt, self.dir_save)
+        print(f'\tactive contours...')
 
-        mts.saveFile(postProc.dict, self.path_img)
+        snk.dict['phi_res'] = snk.phi_res
+        mts.saveFile(snk.dict, self.path_dict)
+
+        self.sts.imshow(snk.erfa, 'erfa.pdf', cmap='gray')
+        self.sts.imshow(snk.use_er, 'use_er.pdf', cmap='gray')
+        self.sts.imcontour(snk.img, snk.phi_res, 'phi_res.pdf')
+        return 0
+
+    def idReg(self):
+        _dt = mts.loadFile(self.path_dict)
+        idreg = IdRegion(_dt, self.dir_save, self.path_dict)
+        print(f'\tindentifying regions...')
+
+        mts.saveFile(idreg.dict, self.path_dict)
 
 
 if __name__=='__main__':
     args = get_args()
     if args.ALL:
-        args.make_er = True
-        args.trim_er = True
-        args.seg_lvset = True
-        args.post_seg = True
+        args.pre_er = True
+        args.refine = True
+        args.snake = True
+        args.id_reg = True
 
     # imgs = args.imgs if args.imgs else [0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 20, 21]
     # imgs = args.imgs if args.imgs else [4, 5, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 20, 21]
@@ -129,14 +143,10 @@ if __name__=='__main__':
     mts.makeDir(dir_result)
 
     for ni in imgs:
-        TSeg = TeethSeg(dir_result, ni)
+        tseg = TeethSeg(dir_result, ni)
 
-        # Inference edge regions with a learned deep neural net
-        if args.make_er:
-            TSeg.make_er()
-        
-        if args.trim_er:
-            TSeg.trim_er()
-
-        if args.post_seg:
-            TSeg.post_seg()
+        # Inference pre-edge regions with a learned deep neural net
+        if args.pre_er: tseg.getPER()
+        if args.refine: tseg.refinePER()
+        if args.snake: tseg.snake()
+        if args.id_reg: tseg.idReg()

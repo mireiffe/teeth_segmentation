@@ -58,6 +58,7 @@ class ThreeRegions():
         self.mu3_i, self.var3_i = np.zeros_like(self.phi), np.zeros_like(self.phi)
         self.mu3_o, self.var3_o = np.zeros_like(self.phi), np.zeros_like(self.phi)
         # idx_band = np.where(self.band)
+        
         idx_band = np.where(np.abs(self.phi) < 2)
         for y, x in zip(*idx_band):
             x1, x2, y1, y2 = self.localReg(x, y)
