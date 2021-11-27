@@ -12,8 +12,8 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "args": [
-                // "--id_reg",
-                "--ALL",
+                "--id_reg",
+                // "--ALL",
                 // "--pre_er",
                 // "--refine",
                 // "--img", "-3",

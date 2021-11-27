@@ -19,33 +19,35 @@ class IdRegion():
 
         self.m, self.n = self.img.shape[:2]
 
-        self.reg_res = self.setReg(self.phi_res)
+        self.lbl_reg = self.setReg(self.phi_res)
         self.res = self.regClass()
         self._saveSteps()
 
     def setReg(self, phis):
         res = -np.ones((self.m, self.n))
         for i, phi in enumerate(phis):
-            if len(np.where(phi < 0)[0]) > self.m * self.n / 10:
+            if len(np.where(phi < 0)[0]) > self.m * self.n / 1000:
                 res = np.where(phi < 0, i, res)
         return res
 
     def regClass(self):
-        lbl_kapp = self.regClassKapp(self.img, self.reg_res)
+        lbl_inreg = self.removeBG(self.lbl_reg)
+        lbl_kapp = self.regClassKapp(lbl_inreg)
         lbl_intia = self.regInertia(lbl_kapp)
+
         cand_rm = self.candVLine(lbl_intia)
         lbl_vl = self.regClassVLine(self.img, lbl_kapp, cand_rm)
         lbl_sd = self.removeSide(self.img, lbl_vl)
-        lbl_sd2 = self.removeBG(lbl_sd)
-        return lbl_sd2
+        return lbl_sd
 
     @staticmethod
     def removeBG(lbl):
-        if len(np.unique(lbl[[0, -1], :])) == 1 and len(np.unique(lbl[:, [0, -1]])) == 1:
-            if np.unique(lbl[[0, -1], :])[0] == np.unique(lbl[:, [0, -1]])[0]:
-                l = np.unique(lbl[[0, -1], :])[0]
-                res = np.copy(lbl)
-                res = np.where(lbl == l, -1., res)
+        tnb = np.unique(lbl[[0, -1], :])
+        lnr = np.unique(lbl[:, [0, -1]])
+
+        res = np.copy(lbl)
+        for l in np.unique(np.union1d(tnb, lnr)):
+            res = np.where(lbl == l, -1., res)
         return res
 
     def regClassKapp(self, lbl):
@@ -89,83 +91,38 @@ class IdRegion():
         return res
 
     def regInertia(self, lbl):
-        eig_lst = []
+        eig_lst = {}
+        rat_lst = {}
+        cenm_lst = {}
         for l in np.unique(lbl):
 
             if l < 0: continue
             r_idx = np.where(lbl == l)
-            # r_idx = np.where(self.phi_res[int(l)]<0)
 
             # y and x order
             cenm = np.sum(r_idx, axis=1) / len(r_idx[0])
             cen_idx = r_idx[0] - cenm[0], r_idx[1] - cenm[1]
-
-            # skness1 = np.sum(cen_idx[0]**3) / len(r_idx[0]), np.sum(cen_idx[1]**3) / len(r_idx[0])
-            # skness2 = np.sum(cen_idx[0]**2) / len(r_idx[0]), np.sum(cen_idx[1]**2) / len(r_idx[0])
-            # skness = skness1 / skness2**1.5
-
-            # print([l, np.sqrt(np.power(skness, 2).sum())])
 
             Ixx = np.sum(cen_idx[0]**2)
             Iyy = np.sum(cen_idx[1]**2)
             Ixy = -np.sum(cen_idx[0]*cen_idx[1])
 
             intiaT = [[Ixx, Ixy], [Ixy, Iyy]]
-
             D, Q = mts.sortEig(intiaT)
 
-            lpx_v = Q[1, 1] / Q[0, 1]
+            eig_lst[l] = (D, Q)
+            rat_lst[l] = D[0] / D[1]
+            cenm_lst[l] = cenm
 
-            # plt.figure()
-            # # plt.quiver([cenm[1], cenm[1]], [cenm[0], cenm[0]], Q[0, :], Q[1, :], angles='xy', color='black')
-            # plt.imshow(np.where(lbl == l, 1, 0), mts.colorMapAlpha(plt))
-            # plt.quiver([cenm[1]], [cenm[0]], Q[0, 0], Q[1, 0], angles='xy', color='black')
-            # plt.quiver([cenm[1]], [cenm[0]], Q[0, 1], Q[1, 1], angles='xy', color='blue')
-
-            eig_lst.append(D[0] / D[1])
-
-            plt.text(cenm[1], cenm[0], f'{D[0] / D[1]:.2f}', color='b')
-
-            # ### meetting
-            # temp = np.where(lbl == l, 1, 0)
-            # tempp = np.zeros_like(temp)
-            # m, n = tempp.shape
-
-            # for x in range(n):
-            #     for y in range(m):
-            #         xy = np.array([x - cenm[1], y - cenm[0]])
-            #         nxy = (np.matmul(Q.T, xy))
-            #         # nxy = (np.matmul(np.array([[1/np.sqrt(2), 1/np.sqrt(2)], [-1/np.sqrt(2), 1/np.sqrt(2)]]), xy))
-            #         try:
-            #             yy = np.clip(np.round(nxy[1] + cenm[0]).astype(int), 0, m)
-            #             xx = np.clip(np.round(nxy[0] + cenm[1]).astype(int), 0, n)
-            #             if temp[yy, xx]:
-            #                 tempp[y, x] = 1
-            #         except:
-            #             pass
-            # QQ = np.matmul(Q.T, Q)
-            # plt.figure()
-            # plt.imshow(tempp, mts.colorMapAlpha(plt))
-            # plt.quiver([cenm[1]], [cenm[0]], QQ[0, 0], QQ[1, 0], angles='xy', color='black')
-            # plt.quiver([cenm[1]], [cenm[0]], QQ[0, 1], QQ[1, 1], angles='xy', color='blue')
-
-            # a_idx = np.where(tempp == 1)
-            # acen_idx = a_idx[0] - cenm[0], a_idx[1] - cenm[1]
-            # skness1 = np.sum(acen_idx[0]**3) / len(a_idx[0]), np.sum(acen_idx[1]**3) / len(a_idx[0])
-            # sig2 = np.sum(acen_idx[0]**2) / len(a_idx[0]), np.sum(acen_idx[1]**2) / len(a_idx[0])
-            # skness = skness1[0] / sig2[0]**1.5, skness1[1] / sig2[1]**1.5
-
-            # print([l, skness])
-
-
-        # plt.show()
+        mu_rat = np.mean(list(rat_lst.values()))
+        var_rat = np.var(list(rat_lst.values()))
 
         res = np.copy(lbl)
-        # for rns in reg_nsym:
-        #     res = np.where(lbl == rns, -1., res)
-
-
-
+        for l in np.unique(lbl):
+            if l < 0: continue
+            _ang = np.abs(eig_lst[l][1][0, 1]) >= np.cos(np.pi / 6)
+            if (rat_lst[l] > mu_rat - var_rat**.5) and (_ang):
+                res = np.where(res == l, -1, res)
 
         return res
 
@@ -300,11 +257,11 @@ class IdRegion():
         plt.close(fig)
 
     def _saveSteps(self):
-        self._showSaveMax(self.reg_res, 'reg_res.pdf')
+        self._showSaveMax(self.lbl_reg, 'lbl_reg.pdf')
         self._showSaveMax(self.res, 'res.pdf')
         self._showSaveMax(self.img, 'res_c.pdf', contour=self.res)
 
-        self.dict['reg_res'] = self.reg_res
+        self.dict['lbl_reg'] = self.lbl_reg
         self.dict['res'] = self.res
 
         pass

@@ -114,8 +114,8 @@ class TeethSeg():
 
     def idReg(self):
         _dt = mts.loadFile(self.path_dict)
-        idreg = IdRegion(_dt, self.dir_save, self.path_dict)
         print(f'\tindentifying regions...')
+        idreg = IdRegion(_dt, self.dir_save)
 
         mts.saveFile(idreg.dict, self.path_dict)
 
@@ -130,8 +130,8 @@ if __name__=='__main__':
 
     # imgs = args.imgs if args.imgs else [0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 20, 21]
     # imgs = args.imgs if args.imgs else [4, 5, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 20, 21]
-    imgs = args.imgs if args.imgs else [0, 1, 5, 8, 17, 18]
-    imgs = args.imgs if args.imgs else [1]
+    imgs = args.imgs if args.imgs else [800005, 0, 1, 5, 8, 17, 18]
+    # imgs = args.imgs if args.imgs else [1]
 
     today = time.strftime("%y%m%d", time.localtime(time.time()))
     # label_test = '1'
