@@ -36,7 +36,7 @@ class IdRegion():
         lbl_intia = self.regInertia(lbl_kapp)
 
         cand_rm = self.candVLine(lbl_intia)
-        lbl_vl = self.regClassVLine(self.img, lbl_kapp, cand_rm)
+        lbl_vl = self.regClassVLine(self.img, lbl_intia, cand_rm)
         lbl_sd = self.removeSide(self.img, lbl_vl)
         return lbl_sd
 
@@ -121,8 +121,8 @@ class IdRegion():
         for l in np.unique(lbl):
             if l < 0: continue
             _ang = np.abs(eig_lst[l][1][0, 1]) >= np.cos(np.pi / 6)
-            if (rat_lst[l] > mu_rat - var_rat**.5) and (_ang):
-                res = np.where(res == l, -1, res)
+            if (rat_lst[l] > mu_rat - 0 * np.sqrt(var_rat)) and (_ang):
+                res = np.where(lbl == l, -1, res)
 
         return res
 
@@ -165,7 +165,7 @@ class IdRegion():
         m_a = np.unravel_index(np.argmax(lab[..., 1]), lab[..., 1].shape)
         m_b = np.unravel_index(np.argmax(lab[..., 2]), lab[..., 2].shape)
         # init_k = np.array([[100, 0, 0], p_lab[m_a[0], :], (p_lab[m_a[0], :] + [100, 0, 0])/ 2])
-        init_k = np.array([[100, 0, 0], lab[m_a[0], m_a[1], :], [50, 0, lab[m_b[0], m_b[1], 2]]])
+        _init_k = np.array([[100, 0, 0], lab[m_a[0], m_a[1], :], [50, 0, lab[m_b[0], m_b[1], 2]]])
 
         for l in cand:
             if l < 0: continue
@@ -189,9 +189,10 @@ class IdRegion():
                 p_img = vl_img[vl_lbl >= 0]
                 p_lab = vl_lab[vl_lbl >= 0]
 
-                # m_a = np.unravel_index(np.argmax(p_lab[..., 1]), p_lab[..., 1].shape)
-                # m_b = np.unravel_index(np.argmax(p_lab[..., 2]), p_lab[..., 2].shape)
-                # init_k = np.array([[100, 0, 0], p_lab[m_a[0], :], [50, 0, p_lab[m_b[0], :][2]]])
+                p_m_a = np.unravel_index(np.argmax(p_lab[..., 1]), p_lab[..., 1].shape)
+                p_m_b = np.unravel_index(np.argmax(p_lab[..., 2]), p_lab[..., 2].shape)
+                p_init_k = np.array([[100, 0, 0], p_lab[p_m_a[0], :], [50, 0, p_lab[p_m_b[0], 2]]])
+                init_k = (_init_k + p_init_k) / 2
                 kmeans = KMeans(n_clusters=3, init=init_k).fit(p_lab)
                 kmlbl = kmeans.labels_
 
@@ -203,7 +204,7 @@ class IdRegion():
                 if 1 == 0:
                     fig = plt.figure()
                     ax = fig.add_subplot(111, projection='3d') # Axe3D object
-                    ax.scatter(p_lab[..., 1], p_lab[..., 2], p_lab[..., 0], vmin=-1, vmax=46, c=p_lbl, s= 20, alpha=0.5, cmap=mts.colorMapAlpha(plt))
+                    ax.scatter(p_lab[..., 1], p_lab[..., 2], p_lab[..., 0], vmin=-1, vmax=13, c=p_lbl, s= 20, alpha=0.5, cmap=mts.colorMapAlpha(plt))
                     ax.scatter(init_k[..., 1], init_k[..., 2], init_k[..., 0], marker='*', vmax=2, c=[0, 1, 2], s= 60, alpha=1, cmap=mts.colorMapAlpha(plt))
                     fig = plt.figure()
                     ax = fig.add_subplot(111, projection='3d') # Axe3D object

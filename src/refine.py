@@ -35,7 +35,8 @@ class RefinePreER():
 
         self.num_pts = 10
         self.gap = round(self.wid_er)
-        self.maxlen_cv = 2 * (self.gap * (self.num_pts - 1) + self.num_pts)
+        # self.maxlen_cv = 2 * (self.gap * (self.num_pts - 1) + self.num_pts)
+        self.maxlen_cv = self.len_diag / 50
 
         self.endPreSet()
         self.dilErFa()
@@ -43,6 +44,7 @@ class RefinePreER():
         sts.imshow(self.bar_er, 'er_dilerfa.pdf', cmap='gray')
         sts.imshows([self.img, self.sk], 'skel_dilerfa.pdf', [None, self.brg_alpha], alphas=[None, None])
 
+        self.endPreSet()
         self.dilCurve(dim_poly=2)
         self.skeletonize()
         sts.imshow(self.bar_er, 'er_quad.pdf', cmap='gray')
@@ -58,18 +60,18 @@ class RefinePreER():
         ######################################
         # plt.figure()
         # plt.imshow(self.bar_er, 'gray')
-        # # plt.imshow(self.lbl_Send[32:224, 18:195] > .5, mts.colorMapAlpha(plt))
+        # plt.imshow(self.lbl_Send[32:224, 18:195] > .5, mts.colorMapAlpha(plt))
         # plt.imshow(self.bar_er[32:224, 18:195], 'gray')
-        # # plt.imshow(self.lbl_Send[32:224, 18:195] > .5, mts.colorMapAlpha(plt))
+        # plt.imshow(self.lbl_Send[32:224, 18:195] > .5, mts.colorMapAlpha(plt))
         # for i, idx in enumerate(self.ind_end):
-        #     if i in [11]:
-        #         continue
+        #     # if i in [11]:
+        #         # continue
         #     xx, yy = list(zip(*idx))
             
-        #     plt.plot(np.array(yy[1::10]) - 19, np.array(xx[1::10]) - 33, 'r-')
-        #     plt.plot(yy[0] - 19, xx[0] - 33, 'b', marker='o', markersize=3)
-        #     # plt.plot(np.array(yy[0:10]), np.array(xx[0:10]), 'r-')
-            # plt.plot(yy[0], xx[0], 'b', marker='o', markersize=5)
+        #     # plt.plot(np.array(yy[1::10]) - 19, np.array(xx[1::10]) - 33, 'r-')
+        #     # plt.plot(yy[0] - 19, xx[0] - 33, 'b', marker='o', markersize=3)
+        #     plt.plot(np.array(yy[0:20]), np.array(xx[0:20]), 'r-')
+        #     plt.plot(yy[0], xx[0], 'b', marker='o', markersize=3)
         # plt.axis('off')
         # plt.savefig('forpaper/Fig8_curve.pdf', dpi=1024, bbox_inches='tight', pad_inches=0)
         
@@ -112,7 +114,7 @@ class RefinePreER():
         self.removeHoles()
         self.removeShorts()
 
-    def removeShorts(self, param_sz=10):
+    def removeShorts(self, param_sz=50):
         self.skeletonize()
         tol_len = self.len_diag/ param_sz
         # lbl_sk = label(self.sk, background=0, connectivity=2)
@@ -422,7 +424,7 @@ class RefinePreER():
                             alb_reg = np.where(al_lbl == alb)
                             sz_alb = len(alb_reg[0])
 
-                            tol_back = self.m * self.n / 1000
+                            tol_back = self.m * self.n / 2000
                             if sz_alb < 3:
                                 continue
                             elif sz_alb < tol_back:
