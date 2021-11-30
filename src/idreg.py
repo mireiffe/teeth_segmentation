@@ -26,7 +26,7 @@ class IdRegion():
     def setReg(self, phis):
         res = -np.ones((self.m, self.n))
         for i, phi in enumerate(phis):
-            if len(np.where(phi < 0)[0]) > self.m * self.n / 1000:
+            if len(np.where(phi < 0)[0]) > self.m * self.n / 750:
                 res = np.where(phi < 0, i, res)
         return res
 
@@ -77,15 +77,16 @@ class IdRegion():
             n_kapp_n = (kapp_n * reg_cal).sum()
 
             reg_kapp[l] = (n_kapp_p - n_kapp_n) / (reg_cal.sum())
-            if n_kapp_p < n_kapp_n + .1:
+            if reg_kapp[l] < .1:
                 reg_nkapp.append(l)
 
-        mu_img = np.mean(self.img, where=np.where(self.img==0, False, True))
+        stimg = (self.img[..., 1] + self.img[..., 2]) - 2*self.img[..., 0]
+        # mu_img = np.mean(self.img, where=np.where(self.img==0, False, True))
         # var_img = np.var(self.img, where=np.where(self.img==0, False, True))
+        mu_img = np.mean(stimg, where=np.where(np.abs(stimg) < 1E-04, False, True))
         res = np.copy(lbl)
         for rnk in reg_nkapp:
-            _reg = (lbl == rnk)
-            _mu_r = np.mean(self.img.transpose((2, 0, 1)), where=_reg)
+            _mu_r = np.mean(stimg, where=(lbl == rnk))
             if _mu_r <= mu_img:
                 res = np.where(lbl == rnk, -1., res)
         return res
@@ -117,14 +118,55 @@ class IdRegion():
         mu_rat = np.mean(list(rat_lst.values()))
         var_rat = np.var(list(rat_lst.values()))
 
+        # mu_img = np.mean(self.img, where=np.where(self.img==0, False, True))
+        stimg = (self.img[..., 1] + self.img[..., 2]) - 2*self.img[..., 0]
+        mu_img = np.mean(stimg, where=np.where(np.abs(stimg) < 1E-04, False, True))
+
         res = np.copy(lbl)
         for l in np.unique(lbl):
             if l < 0: continue
-            _ang = np.abs(eig_lst[l][1][0, 1]) >= np.cos(np.pi / 6)
-            if (rat_lst[l] > mu_rat - 0 * np.sqrt(var_rat)) and (_ang):
-                res = np.where(lbl == l, -1, res)
+            # _mu_r = np.mean(self.img.transpose((2, 0, 1)), where=_reg)
+            _mu_r = np.mean(stimg, where=(lbl == l))
+            if _mu_r <= mu_img:
+                _ang = np.abs(eig_lst[l][1][0, 1]) >= np.cos(np.pi / 4)
+                if (rat_lst[l] > mu_rat - 0 * np.sqrt(var_rat)) and (_ang):
+                    res = np.where(lbl == l, -1, res)
 
         return res
+
+        import matplotlib.patheffects as PathEffects
+        plt.figure()
+        plt.imshow(self.img)
+        for ph in self.phi_res:
+            if (ph < 0).sum() >= self.m*self.n / 1000:
+                plt.contour(ph, levels=[0], colors='lime')
+        for l in np.unique(lbl):
+            if (self.phi_res[int(l)] < 0).sum() < self.m*self.n / 1000:
+                continue
+
+            if l < 0: continue
+            # plt.quiver(cenm_lst[l][1], cenm_lst[l][0], eig_lst[l][1][0, 0], eig_lst[l][1][1, 0], angles='xy', color='blue')
+            # plt.quiver(cenm_lst[l][1], cenm_lst[l][0], eig_lst[l][1][0, 1], eig_lst[l][1][1, 1], angles='xy', color='blue')
+            # tt = f'rat: {eig_lst[l][0][0] / eig_lst[l][0][1]:.2f}\nang: {np.arccos(np.abs(eig_lst[l][1][0, 1]))*180/np.pi:.2f}'
+            # txt = plt.text(cenm_lst[l][1], cenm_lst[l][0], tt, color='black', fontsize=9)
+            # txt.set_path_effects([PathEffects.withStroke(linewidth=3, foreground='w')])
+            tt1 = f'rat: {eig_lst[l][0][0] / eig_lst[l][0][1]:.2f}'
+            tt2 = f'ang: {np.arccos(np.abs(eig_lst[l][1][0, 1]))*180/np.pi:.1f}'
+            if rat_lst[l] >= mu_rat:
+                txt1 = plt.text(cenm_lst[l][1], cenm_lst[l][0], tt1, color='r', fontsize=9)
+            else:
+                txt1 = plt.text(cenm_lst[l][1], cenm_lst[l][0], tt1, color='black', fontsize=9)
+            if np.arccos(np.abs(eig_lst[l][1][0, 1]))*180/np.pi <  20:
+                txt2 = plt.text(cenm_lst[l][1], cenm_lst[l][0]+10, tt2, color='r', fontsize=9)
+            else:
+                txt2 = plt.text(cenm_lst[l][1], cenm_lst[l][0]+10, tt2, color='black', fontsize=9)
+            txt1.set_path_effects([PathEffects.withStroke(linewidth=3, foreground='w')])
+            txt2.set_path_effects([PathEffects.withStroke(linewidth=3, foreground='w')])
+            if (rat_lst[l] >= mu_rat) or (np.arccos(np.abs(eig_lst[l][1][0, 1]))*180/np.pi <  20):
+                _mu_r = np.mean(self.img.transpose((2, 0, 1)), where=self.phi_res[int(l)] < 0)
+                if _mu_r <= mu_img:
+                    plt.imshow(self.phi_res[int(l)] < 0, vmax=2, cmap=mts.colorMapAlpha(plt))
+        plt.title(f'Average = {mu_rat:.2f}')
 
     @staticmethod
     def candVLine(lbl):

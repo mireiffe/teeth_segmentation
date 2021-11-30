@@ -27,16 +27,20 @@ class RefinePreER():
 
         self.removeHoleNShorts()
         self.bar_er = mts.imDilErod(
-            self.bar_er, rad=max(round(self.wid_er / 2), 1),
+            self.bar_er, rad=max(round(self.wid_er / 1.5), 1),
             kernel_type='circular'
             )
-        sts.imshow(self.bar_er, 'er_pre.pdf', cmap='gray')
+        self.bar_er = mts.imDilErod(
+            self.bar_er, rad=max(round(self.wid_er / 1.5), 1),
+            kernel_type='circular'
+            )
+        # sts.imshow(self.bar_er, 'er_pre.pdf', cmap='gray')
         sts.imshows([self.img, self.sk], 'skel_pre.pdf', [None, self.brg_alpha], alphas=[None, None])
 
         self.num_pts = 10
         self.gap = round(self.wid_er)
-        # self.maxlen_cv = 2 * (self.gap * (self.num_pts - 1) + self.num_pts)
-        self.maxlen_cv = self.len_diag / 50
+        self.maxlen_cv = 2 * (self.gap * (self.num_pts - 1) + self.num_pts)
+        # self.maxlen_cv = self.len_diag / 50
 
         self.endPreSet()
         self.dilErFa()
@@ -316,7 +320,7 @@ class RefinePreER():
 
         lst_del = []
         for idx in self.ind_end:
-            if len(idx) < self.maxlen_cv // 10:
+            if len(idx) < max(self.maxlen_cv // 50, 5):
                 lst_del.append(idx)
         for ld in lst_del:
             self.ind_end.remove(ld)
