@@ -1,20 +1,18 @@
-import os
 from os.path import join
-import pickle
 import argparse
 import time
 
-import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from skimage.measure import label
 
 # custom libs
 from edge_region import EdgeRegion
-from balloon import Balloon
-from curve import CurveProlong
-from post import PostProc
+from refine import RefinePreER
+from snake import Snake
+from idreg import IdRegion
 import myTools as mts
+from reinitial import Reinitial
 
 
 VISIBLE = False
@@ -28,18 +26,18 @@ def get_args():
     parser.add_argument("--device", dest="device", nargs='+', type=str, default=0,
                              required=False, metavar="DVC",
                              help="name of dataset to use")
-    parser.add_argument("--make_er", dest="make_er",
+    parser.add_argument("--pre_er", dest="pre_er",
                              required=False, action='store_true',
                              help="Network inference for making edge region")
-    parser.add_argument("--repair_er", dest="repair_er",
+    parser.add_argument("--refine", dest="refine",
                              required=False, action='store_true',
-                             help="Repair the edge region")
-    parser.add_argument("--seg_lvset", dest="seg_lvset",
+                             help="Refinment of regions")
+    parser.add_argument("--snake", dest="snake",
                              required=False, action='store_true',
-                             help="Segmentation by using level set method")
-    parser.add_argument("--post_seg", dest="post_seg",
+                             help="snake")
+    parser.add_argument("--id_reg", dest="id_reg",
                              required=False, action='store_true',
-                             help="Post process for segmentation")
+                             help="Idetification of regions")
     parser.add_argument("--ALL", dest="ALL",
                              required=False, action='store_true',
                              help="Do every process in a row")
@@ -48,124 +46,95 @@ def get_args():
                              help="configuration file")
     return parser.parse_args()
 
-
 class TeethSeg():
     def __init__(self, dir_result, num_img) -> None:
+        print(f'image {ni}, initiating...')
+
         self.dir_save = join(dir_result, f'{num_img:05d}/')
         mts.makeDir(self.dir_save)
         self.sts = mts.SaveTools(self.dir_save)
-        self.path_img = join(self.dir_save, f'{num_img:05d}.pth')
+        self.path_dict = join(self.dir_save, f'{num_img:05d}.pth')
 
         self.dt = {}
-        
-    def make_er(self):
+
+    def getPER(self):
         '''
         Inference edge regions with a learned deep neural net
         '''
-        edrg = EdgeRegion(args, ni, scaling=False)
+
+        edrg = EdgeRegion(args, ni, scaling=True)
+        print(f'\tobtaining pre-edge region...')
+
         input, output = edrg.getEr()
-        _dt = {'img': input, 'output': output, 'net_er': np.where(output > .5, 1., 0.)}
+        pre_er = np.where(output > .5, 1., 0.)
 
+        _dt = {'img': input, 'output': output, 'pre_er': pre_er}
         self.dt.update(_dt)
-        mts.saveFile(self.dt, self.path_img)
+        mts.saveFile(self.dt, self.path_dict)
 
-        print(f"Edge region: {self.path_img} is saved!!")
-        
-        self.sts.imshow(input, 'img.png')
-        self.sts.imshow(output, 'output.png', cmap='gray')
-        self.sts.imshow(np.where(output > .5, 1., 0.), 'net_er.png', cmap='gray')
+        self.sts.imshow(input, 'img.pdf')
+        self.sts.imshow(output, 'output.pdf', cmap='gray')
+        self.sts.imshow(pre_er, 'pre_er.pdf', cmap='gray')
 
-    def repair_er(self):
-        _dt = mts.loadFile(self.path_img)
+        return 0
+
+    def refinePER(self):
+        _dt = mts.loadFile(self.path_dict)
         img = _dt['img']
-        net_er = _dt['net_er']
+        pre_er = _dt['pre_er']
+        CP = RefinePreER(img, pre_er, self.sts)
+        print(f'\trefining pre-edge region...')
 
-        CP = CurveProlong(img, net_er, self.dir_save)
+        lbl_reg = label(CP.bar_er, background=1, connectivity=1)
+        rein = Reinitial(dt=0.1, width=10, tol=0.01)
+        phi0 = [rein.getSDF(np.where(lbl_reg == l, -1., 1.)) 
+                for l in range(1, np.max(lbl_reg)+1)]
+                
+        _dt.update({
+            'bar_er': CP.bar_er, 'sk': CP.sk, 
+            'erfa': CP.erfa, 'gadf': CP.fa, 'phi0': phi0
+            })
+        mts.saveFile(_dt, self.path_dict)
 
-        _dt['er'] = CP.er
-        _dt['edge_er'] = CP.edge_er
-        _dt['repaired_sk'] = CP.sk
-        mts.saveFile(_dt, self.path_img)
-        plt.close('all')
+        self.sts.imcontour(CP.img, phi0, 'phi0.pdf')
+        return 0
 
-    def seg_lvset(self):
-        _dt = mts.loadFile(self.path_img)
-        seg_er = cv2.dilate(_dt['repaired_sk'].astype(float), np.ones((3, 3)), -1, iterations=1)
-        # seg_er = _dt['er']
-        mgn = 2
-        edge_er = np.ones_like(seg_er)
-        edge_er[mgn:-mgn, mgn:-mgn] = seg_er[mgn:-mgn, mgn:-mgn]
-        temp = edge_er - seg_er
-        seg_er = edge_er
+    def snake(self):
+        _dt = mts.loadFile(self.path_dict)
+        print(f'\tactive contours...')
+        snk = Snake(_dt, self.dir_save)
 
-        bln = Balloon(seg_er, wid=5, radii='auto', dt=0.05)
-        phis = bln.phis0
+        snk.dict['phi_res'] = snk.phi_res
+        mts.saveFile(snk.dict, self.path_dict)
 
-        _dt.update({'seg_er': seg_er, 'phi0': phis})
-        # _dt.update({'seg_er': seg_er - temp, 'phi0': phis})
+        self.sts.imshow(snk.erfa, 'erfa.pdf', cmap='gray')
+        self.sts.imshow(snk.use_er, 'use_er.pdf', cmap='gray')
+        self.sts.imcontour(snk.img, snk.phi_res, 'phi_res.pdf')
+        return 0
 
-        fig, ax = bln.setFigure(phis)
-        mng = plt.get_current_fig_manager()
-        mng.window.showMaximized()
-        
-        tol = 0.01
-        _k = 0
-        max_iter = 500
-        _visterm = 10
-        while True:
-            _vis = _k % _visterm == 0 if VISIBLE else _k % _visterm == -1
-            _save = _k % 3 == 3
-            _k += 1
-            _reinit = _k % 10 == 0
+    def idReg(self):
+        _dt = mts.loadFile(self.path_dict)
+        print(f'\tindentifying regions...')
+        idreg = IdRegion(_dt, self.dir_save)
 
-            new_phis = bln.update(phis)
-            print(f"\rimage {ni}, iteration: {_k}", end='')
-
-            if (_k == 1) or (_k > max_iter):
-                bln.drawContours(_k, phis, ax)
-                plt.savefig(join(self.dir_save, f"test{_k:05d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-            if _save or _vis:
-                bln.drawContours(_k, phis, ax)
-                # _save: plt.savefig(join(dir_resimg, f"test{_k:05d}.png"), dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-                if _vis: plt.pause(.1)
-            
-            err = np.abs(new_phis - phis).sum() / np.ones_like(phis).sum()
-            if (err < tol) or _k > max_iter:
-                # new_phis[..., 0] = np.where(temp, -1., new_phis[..., 0])
-                # new_phis[..., 0] = np.where(seg_er, -1., new_phis[..., 0])
-                _dt['phi'] = new_phis
-                mts.saveFile(_dt, self.path_img)
-                break
-
-            if _reinit:
-                new_phis = np.where(new_phis < 0, -1., 1.)
-                new_phis = bln.reinit.getSDF(new_phis)
-            phis = new_phis
-        seg_res = np.where(phis < 0, 1., 0.)
-        lbl = label(seg_res, background=0, connectivity=1)
-        plt.figure()
-        plt.imshow(lbl)
-        plt.savefig(f'{self.dir_save}lbl0.png', dpi=200, bbox_inches='tight', facecolor='#eeeeee')
-        plt.close('all')
-
-    def post_seg(self):
-        _dt = mts.loadFile(self.path_img)
-        print(f'\rimage {ni}, post processing...')
-        postProc = PostProc(_dt, self.dir_save)
-
+        mts.saveFile(idreg.dict, self.path_dict)
 
 
 if __name__=='__main__':
     args = get_args()
     if args.ALL:
-        args.make_er = True
-        args.repair_er = True
-        args.seg_lvset = True
-        args.post_seg = True
+        args.pre_er = True
+        args.refine = True
+        args.snake = True
+        args.id_reg = True
 
-    imgs = args.imgs if args.imgs else [0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 20, 21]
-    imgs = args.imgs if args.imgs else [13, 14, 16, 17, 18, 20, 21]
-    imgs = args.imgs if args.imgs else [17]
+    # imgs = args.imgs if args.imgs else [0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 20, 21]
+    # imgs = args.imgs if args.imgs else [4, 5, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 20, 21]
+    # imgs = args.imgs if args.imgs else [0, 1, 5, 8, 17, 18]
+    # imgs = args.imgs if args.imgs else [2, 3, 4, 6]
+    # imgs = args.imgs if args.imgs else [9, 10, 11, 16]
+    # imgs = args.imgs if args.imgs else [13, 14, 20, 21]
+    imgs = args.imgs if args.imgs else [5]
 
     today = time.strftime("%y%m%d", time.localtime(time.time()))
     # label_test = '1'
@@ -177,17 +146,10 @@ if __name__=='__main__':
     mts.makeDir(dir_result)
 
     for ni in imgs:
-        TSeg = TeethSeg(dir_result, ni)
+        tseg = TeethSeg(dir_result, ni)
 
-        # Inference edge regions with a learned deep neural net
-        if args.make_er:
-            TSeg.make_er()
-        
-        if args.repair_er:
-            TSeg.repair_er()
-
-        if args.seg_lvset:
-            TSeg.seg_lvset()
-
-        if args.post_seg:
-            TSeg.post_seg()
+        # Inference pre-edge regions with a learned deep neural net
+        if args.pre_er: tseg.getPER()
+        if args.refine: tseg.refinePER()
+        if args.snake: tseg.snake()
+        if args.id_reg: tseg.idReg()
