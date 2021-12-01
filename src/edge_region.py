@@ -95,11 +95,16 @@ class EdgeRegion():
         for k, btchs in enumerate(loader_test):
             imgs = btchs[0].to(device=self.dvc_main, dtype=dtype)
 
+            # _m, _n = imgs.shape[2:4]
             # image scaling
-            if (imgs.nelement() / imgs.shape[1] > 1200**2) and self.scaling:
-                imgs = TF.resize(imgs, 600, interpolation=InterpolationMode.NEAREST)
+            # if (imgs.nelement() / imgs.shape[1] > 1200**2) and self.scaling:
+                # imgs = TF.resize(imgs, 500, interpolation=InterpolationMode.NEAREST)
+            # _imgs = TF.resize(imgs, 200, interpolation=InterpolationMode.BILINEAR)
 
+            # preds = net(_imgs)
             preds = net(imgs)
+
+            # preds = TF.resize(preds, _m, interpolation=InterpolationMode.BILINEAR)
 
             om, on = data_test.m, data_test.n
             m, n = imgs.shape[2:4]

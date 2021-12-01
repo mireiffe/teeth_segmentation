@@ -227,9 +227,12 @@ class IdRegion():
                 vl_img = img[:, sx]
                 vl_lbl = lbl[:, sx]
 
-                p_lbl = vl_lbl[vl_lbl >= 0]
-                p_img = vl_img[vl_lbl >= 0]
-                p_lab = vl_lab[vl_lbl >= 0]
+                # p_lbl = vl_lbl[vl_lbl >= 0]
+                # p_img = vl_img[vl_lbl >= 0]
+                # p_lab = vl_lab[vl_lbl >= 0]
+                p_lbl = vl_lbl
+                p_img = vl_img
+                p_lab = vl_lab
 
                 p_m_a = np.unravel_index(np.argmax(p_lab[..., 1]), p_lab[..., 1].shape)
                 p_m_b = np.unravel_index(np.argmax(p_lab[..., 2]), p_lab[..., 2].shape)
@@ -290,7 +293,7 @@ class IdRegion():
             clrs = ['lime'] * 100
             for i in range(int(np.max(contour))):
                 _reg = np.where(contour == i+1, -1., 1.)
-                for _i in range(10):
+                for _i in range(5):
                     _reg = Rein.getSDF(_reg)
                     _reg = ReinKapp.getSDF(_reg)
                 plt.contour(_reg, levels=[0], colors=clrs[i], linewidths=1)

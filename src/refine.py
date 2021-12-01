@@ -55,6 +55,7 @@ class RefinePreER():
         sts.imshows([self.img, self.sk], 'skel_quad.pdf', [None, self.brg_alpha], alphas=[None, None])
 
         self.dilCurve(dim_poly=1)
+        self.removeHoles(param_sz=50)
         self.skeletonize()
         sts.imshow(self.bar_er, 'er_lin.pdf', cmap='gray')
         sts.imshows([self.img, self.sk], 'skel_lin.pdf', [None, self.brg_alpha], alphas=[None, None])
