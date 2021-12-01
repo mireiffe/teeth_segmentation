@@ -100,8 +100,8 @@ class ThreeRegions():
 
         # V2 = np.where(np.abs(self.mu3_i - self.mu3_o) < .1, 1, F3)
         # V2 = (np.where(np.abs(self.mu3_i - self.mu3_o) < .001, 1, F3) - 1)
-        V2 = (np.where(np.abs(self.mu3_i - self.mu3_o) < .01, 0, F3) - 1/2)
-        # V2 = (np.where(np.abs(self.mu3_i - self.mu3_o) < .05, 0, F3))
+        # V2 = (np.where(np.abs(self.mu3_i - self.mu3_o) < .01, 0, F3) - 1/2)
+        V2 = (np.where(np.abs(self.mu3_i - self.mu3_o) < .005, 0, F3) - 1/2)
         # V2 = F3
 
         return V2
