@@ -27,8 +27,8 @@ class Snake():
         self.phi_res = self.snake()
 
     def snake(self):
-        # self.phi0 = self.phi0[2:3]
-        self.phi0 = [self.phi0[i] for i in [2, 0, 1, 3, 9]]
+        self.phi0 = self.phi0[2:3]
+        # self.phi0 = [self.phi0[i] for i in [2, 0, 1, 3, 9]]
         # self.img = self.img[85:155, 110:163, ...]
         # self.bar_er = self.bar_er[85:155, 110:163]
         # self.erfa = self.erfa[85:155, 110:163]
@@ -58,7 +58,7 @@ class Snake():
         k = 0
         while True:
             k += 1
-            if k % 2 == 0:
+            if k % 3 == 0:
                 phis = Rein.getSDF(np.where(phis < 0, -1., 1.))
                 # phis = Rein.getSDF(phis)
 
@@ -73,8 +73,8 @@ class Snake():
             gx, gy = mts.imgrad(phis.transpose((1, 2, 0)))
             Fa = - (gx.transpose((2, 0, 1)) * self.fa[..., 1] + gy.transpose((2, 0, 1)) * self.fa[..., 0])
             _Fb = np.array([- tg.force() for tg in teg])
-            # Fb = mts.gaussfilt((_Fb).transpose((1, 2, 0)), 1)[np.newaxis, ...]
-            Fb = mts.gaussfilt((_Fb).transpose((1, 2, 0)), 1).transpose((2, 0, 1))
+            Fb = mts.gaussfilt((_Fb).transpose((1, 2, 0)), 1)[np.newaxis, ...]
+            # Fb = mts.gaussfilt((_Fb).transpose((1, 2, 0)), 1).transpose((2, 0, 1))
 
             kap = mts.kappa(phis.transpose((1, 2, 0)))[0].transpose((2, 0, 1))
             # F = (Fa + 5*mu*kap)*oma + (Fc + mu*kap)*omc
@@ -82,11 +82,11 @@ class Snake():
             new_phis = phis + dt * F
 
             err = np.abs(new_phis - phis).sum() / new_phis.size
-            if err < 1E-04 or k > 150:
+            if err < 1E-04 or k > 200:
             # if err < 1E-04 or k > 1:
                 break
         
-            if k in [1, 2] or k % 2 == 0:
+            if k in [1, 2] or k % 1 == 0:
                 plt.figure(1)
                 plt.cla()
                 # plt.imshow(self.img)
@@ -104,7 +104,7 @@ class Snake():
                         plt.contour(ph[85:155, 110:163], levels=[0], colors='red', linewidths=3.5)
                 # plt.title(f'iter = {k:d}')
                 # plt.show()
-                mts.savecfg(f'/home/users/mireiffe/Documents/Python/TeethSeg/forpaper/ksiam_evolve_ex2/ex{k}')
+                mts.savecfg(f'/home/users/mireiffe/Documents/Python/TeethSeg/forpaper/ksiam_evolve_ex/ex{k}')
                 plt.pause(.1)
 
                 # plt.figure(2)

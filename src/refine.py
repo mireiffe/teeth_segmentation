@@ -44,6 +44,7 @@ class RefinePreER():
 
         self.endPreSet()
         self.dilErFa()
+        plt.figure(); plt.imshow(self.bar_er, 'gray'); plt.imshow(self.erfa, mts.colorMapAlpha(plt)); plt.show()
         self.skeletonize()
         sts.imshow(self.bar_er, 'er_dilerfa.pdf', cmap='gray')
         sts.imshows([self.img, self.sk], 'skel_dilerfa.pdf', [None, self.brg_alpha], alphas=[None, None])
