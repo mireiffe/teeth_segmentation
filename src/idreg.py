@@ -1,4 +1,6 @@
 import numpy as np
+import matplotlib
+matplotlib.use('qt5agg')
 import matplotlib.pyplot as plt
 
 from sklearn.cluster import KMeans
@@ -79,6 +81,7 @@ class IdRegion():
             reg_kapp[l] = (n_kapp_p - n_kapp_n) / (reg_cal.sum())
             if reg_kapp[l] < .1:
                 reg_nkapp.append(l)
+
 
         stimg = (self.img[..., 1] + self.img[..., 2]) - 2*self.img[..., 0]
         # mu_img = np.mean(self.img, where=np.where(self.img==0, False, True))
@@ -227,16 +230,16 @@ class IdRegion():
                 vl_img = img[:, sx]
                 vl_lbl = lbl[:, sx]
 
-                # p_lbl = vl_lbl[vl_lbl >= 0]
-                # p_img = vl_img[vl_lbl >= 0]
-                # p_lab = vl_lab[vl_lbl >= 0]
-                p_lbl = vl_lbl
-                p_img = vl_img
-                p_lab = vl_lab
+                p_lbl = vl_lbl[vl_lbl >= 0]
+                p_img = vl_img[vl_lbl >= 0]
+                p_lab = vl_lab[vl_lbl >= 0]
+                # p_lbl = vl_lbl
+                # p_img = vl_img
+                # p_lab = vl_lab
 
                 p_m_a = np.unravel_index(np.argmax(p_lab[..., 1]), p_lab[..., 1].shape)
                 p_m_b = np.unravel_index(np.argmax(p_lab[..., 2]), p_lab[..., 2].shape)
-                p_init_k = np.array([[100, 0, 0], p_lab[p_m_a[0], :], [50, 0, p_lab[p_m_b[0], 2]]])
+                p_init_k = np.array([[100, 0, 0], [50, p_lab[p_m_a[0], 1], p_lab[p_m_a[0], 2]], [50, 0, p_lab[p_m_b[0], 2]]])
                 init_k = (_init_k + p_init_k) / 2
                 kmeans = KMeans(n_clusters=3, init=init_k).fit(p_lab)
                 kmlbl = kmeans.labels_
@@ -249,7 +252,7 @@ class IdRegion():
                 if 1 == 0:
                     fig = plt.figure()
                     ax = fig.add_subplot(111, projection='3d') # Axe3D object
-                    ax.scatter(p_lab[..., 1], p_lab[..., 2], p_lab[..., 0], vmin=-1, vmax=13, c=p_lbl, s= 20, alpha=0.5, cmap=mts.colorMapAlpha(plt))
+                    ax.scatter(p_lab[..., 1], p_lab[..., 2], p_lab[..., 0], vmin=-1, vmax=33, c=p_lbl, s= 20, alpha=0.5, cmap=mts.colorMapAlpha(plt))
                     ax.scatter(init_k[..., 1], init_k[..., 2], init_k[..., 0], marker='*', vmax=2, c=[0, 1, 2], s= 60, alpha=1, cmap=mts.colorMapAlpha(plt))
                     fig = plt.figure()
                     ax = fig.add_subplot(111, projection='3d') # Axe3D object

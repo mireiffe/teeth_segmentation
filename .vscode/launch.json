@@ -4,7 +4,6 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-
         {
             "name": "Python: Current File",
             "type": "python",
@@ -16,7 +15,7 @@
                 // "--ALL",
                 // "--pre_er",
                 // "--refine",
-                "--snake",
+                // "--snake",
                 // "--img", "-3",
                 "--device", "cuda", "1",
                 "--cfg", "cfg/inference.ini"
