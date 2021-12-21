@@ -14,7 +14,6 @@ from idreg import IdRegion
 import myTools as mts
 from reinitial import Reinitial
 
-
 VISIBLE = False
 
 def get_args():
@@ -44,7 +43,8 @@ def get_args():
     parser.add_argument("--cfg", dest="path_cfg", type=str, default='cfg/inference.ini',
                              required=False, metavar="CFG", 
                              help="configuration file")
-    return parser.parse_args()
+    # return parser.parse_args()
+    return parser.parse_args(args=[])
 
 class TeethSeg():
     def __init__(self, dir_result, num_img) -> None:

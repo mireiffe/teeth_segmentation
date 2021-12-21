@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib
-matplotlib.use('qt5agg')
+# matplotlib.use('qt5agg')
 import matplotlib.pyplot as plt
 
 from sklearn.cluster import KMeans
