@@ -1,7 +1,10 @@
 import cv2
 import numpy as np
+import matplotlib
+matplotlib.use('Qt5Agg')
 import matplotlib.pyplot as plt
 
+from skimage.morphology import dilation, erosion
 from skimage.morphology import skeletonize
 from skimage.measure import label
 
@@ -18,8 +21,109 @@ class RefinePreER():
     def __init__(self, img, pre_er, sts: mts.SaveTools):
         self.img = img
 
+
         self.pre_er = pre_er
         self.measureWidth()
+
+        ########################################
+        rein = Reinitial(width=None)
+        lbl0 = label(self.pre_er, background=1)
+        kps = np.unique(np.append(np.unique(lbl0[[0, -1], :]), np.unique(lbl0[:, [0, -1]])))
+        temp = self.pre_er
+        for kp in kps:
+            temp = np.where(lbl0 == kp, 1, temp)
+        phi = rein.getSDF(self.pre_er - .5)
+
+        phi1 = np.copy(phi)
+        mem = np.zeros_like(phi)
+        while True:
+            lbl = label(phi1 < 0)
+            _reg = np.zeros_like(lbl)
+            for l in np.unique(lbl)[1:]:
+                _r = np.where(lbl == l, True, False)
+                if np.min(phi1 * _r) <= -3:
+                    _reg += _r
+            if _reg.sum() == 0:
+                break
+            phi1 += _reg
+            mem += _reg
+
+
+        # phi1 = phi**3 + (5 * self.wid_er * (ng > .75) * (phi < 0))**3
+        lbl12 = label(phi1 < 0)
+        for l in np.unique(lbl12)[1:]:
+            _r = np.where(lbl12 == l, 1, 0)
+            if _r.sum() < 10:
+                phi1 = np.where(_r, -phi1, phi1)
+
+        plt.figure(); plt.imshow(self.pre_er, 'gray'); plt.contour(phi1, levels=[0], colors='lime')
+
+        phi2 = rein.getSDF(np.where(phi1 < 0, -1., 1))
+        reinfmm = Reinitial(fmm=True)
+        
+        # lbl2 = label(phi2 < 0)
+        # _reg = np.zeros_like(lbl2)
+        # for l in np.unique(lbl2)[1:]:
+        #     _r = np.where(lbl2 == l, True, False)
+        #     _phi = reinfmm.getSDF(.5 -_r)
+        #     mem_r = np.max(mem * _r)
+        #     _phi = _phi - mem_r + self.wid_er
+        #     _reg = _reg + (_phi < 0)
+        # phi2 = rein.getSDF(.5 - (_reg > .5))
+
+        lbl2 = label(phi2 < 0)
+        # _reg = np.zeros_like(lbl2)
+        # for l in np.unique(lbl2)[1:]:
+        #     _r = np.where(lbl2 == l, True, False)
+        #     _phi = reinfmm.getSDF(.5 -_r)
+        #     _phi = self.evolve(_phi, self.pre_er, dt=1, mu=1, nu=1.5, reinterm=3, tol=3)
+        #     _reg = np.where(_phi < 0, 1., _reg)
+        # phi2 = rein.getSDF(.5 - _reg)
+
+        from skimage.segmentation import watershed
+        res = watershed(mts.gaussfilt(self.pre_er), lbl2 - self.pre_er)
+        plt.figure(); plt.imshow(self.pre_er,'gray')
+        for l in np.unique(res)[1:]:
+            tt =reinfmm.getSDF(np.where(res == l, -1, 1))
+            plt.contour(tt, levels=[0], colors='lime')
+
+        # plt.figure(); plt.imshow(self.pre_er, 'gray'); plt.contour(phi2, levels=[0], colors='lime')
+        # plt.show()
+
+        _GADF = GADF(self.img)
+        self.fa = _GADF.Fa
+        self.erfa = _GADF.Er
+
+        self.bar_er = pre_er
+        self.phi0 = phi2 - mem + self.wid_er
+        self.sk = self.skeletonize()
+
+        return
+        ########################################
+
+    def evolve(self, phi, wall, dt=.3, mu=1, nu=1.5, reinterm=3, tol=3):
+        rein = Reinitial()
+        phi0 = np.copy(phi)
+        k = 0
+        while True:
+            kapp = mts.kappa(phi0)[0]
+
+            phi = phi0 + dt * (-1 + mu * kapp + nu * wall)
+
+            if k % reinterm == 0:
+                reg0 = np.where(phi0 < 0, 1, 0)
+                reg = np.where(phi < 0, 1, 0)
+                setmn = (reg0 + reg - 2 * reg0 * reg).sum()
+                print(setmn)
+                if (setmn  < tol):
+                    break
+                phi = rein.getSDF(np.where(phi < 0, -1., 1.))
+
+
+            k += 1
+            phi0 = phi
+
+        return phi
 
         self.bar_er = np.copy(pre_er)
         self.m, self.n = self.bar_er.shape

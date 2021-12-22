@@ -43,8 +43,8 @@ def get_args():
     parser.add_argument("--cfg", dest="path_cfg", type=str, default='cfg/inference.ini',
                              required=False, metavar="CFG", 
                              help="configuration file")
-    # return parser.parse_args()
-    return parser.parse_args(args=[])
+    return parser.parse_args()
+    # return parser.parse_args(args=[])
 
 class TeethSeg():
     def __init__(self, dir_result, num_img) -> None:
@@ -85,7 +85,8 @@ class TeethSeg():
         CP = RefinePreER(img, pre_er, self.sts)
         print(f'\trefining pre-edge region...')
 
-        lbl_reg = label(CP.bar_er, background=1, connectivity=1)
+        # lbl_reg = label(CP.bar_er, background=1, connectivity=1)
+        lbl_reg = label(CP.phi0 < 0, background=0, connectivity=1)
         rein = Reinitial(dt=0.1, width=10, tol=0.01)
         phi0 = [rein.getSDF(np.where(lbl_reg == l, -1., 1.)) 
                 for l in range(1, np.max(lbl_reg)+1)]
@@ -134,7 +135,7 @@ if __name__=='__main__':
     # imgs = args.imgs if args.imgs else [2, 3, 4, 6]
     # imgs = args.imgs if args.imgs else [9, 10, 11, 16]
     # imgs = args.imgs if args.imgs else [13, 14, 20, 21]
-    imgs = args.imgs if args.imgs else [30]
+    imgs = args.imgs if args.imgs else [0]
 
     today = time.strftime("%y%m%d", time.localtime(time.time()))
     # label_test = '1'
