@@ -62,8 +62,8 @@ class TeethSeg():
         Inference edge regions with a learned deep neural net
         '''
 
-        edrg = EdgeRegion(args, ni, scaling=True)
         print(f'\tobtaining pre-edge region...')
+        edrg = EdgeRegion(args, ni, scaling=True)
 
         input, output = edrg.getEr()
         pre_er = np.where(output > .5, 1., 0.)
@@ -79,25 +79,25 @@ class TeethSeg():
         return 0
 
     def refinePER(self):
+        print(f'\trefining pre-edge region...')
         _dt = mts.loadFile(self.path_dict)
         img = _dt['img']
         pre_er = _dt['pre_er']
         CP = RefinePreER(img, pre_er, self.sts)
-        print(f'\trefining pre-edge region...')
 
         # lbl_reg = label(CP.bar_er, background=1, connectivity=1)
-        lbl_reg = label(CP.phi0 < 0, background=0, connectivity=1)
-        rein = Reinitial(dt=0.1, width=10, tol=0.01)
-        phi0 = [rein.getSDF(np.where(lbl_reg == l, -1., 1.)) 
-                for l in range(1, np.max(lbl_reg)+1)]
+        # lbl_reg = label(CP.phi0 < 0, background=0, connectivity=1)
+        # rein = Reinitial(dt=0.1, width=10, tol=0.01)
+        # phi0 = [rein.getSDF(np.where(lbl_reg == l, -1., 1.)) 
+        #         for l in range(1, np.max(lbl_reg)+1)]
                 
         _dt.update({
             'bar_er': CP.bar_er, 'sk': CP.sk, 
-            'erfa': CP.erfa, 'gadf': CP.fa, 'phi0': phi0
+            'erfa': CP.erfa, 'gadf': CP.fa, 'phi0': CP.phi0
             })
         mts.saveFile(_dt, self.path_dict)
 
-        self.sts.imcontour(CP.img, phi0, 'phi0.pdf')
+        self.sts.imcontour(CP.img, CP.phi0, 'phi0.pdf')
         return 0
 
     def snake(self):
@@ -130,12 +130,12 @@ if __name__=='__main__':
         args.id_reg = True
 
     # imgs = args.imgs if args.imgs else [0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 20, 21]
-    # imgs = args.imgs if args.imgs else [4, 5, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 20, 21]
     # imgs = args.imgs if args.imgs else [0, 1, 5, 8, 17, 18]
     # imgs = args.imgs if args.imgs else [2, 3, 4, 6]
     # imgs = args.imgs if args.imgs else [9, 10, 11, 16]
     # imgs = args.imgs if args.imgs else [13, 14, 20, 21]
-    imgs = args.imgs if args.imgs else [0]
+    imgs = args.imgs if args.imgs else [13]
+    # imgs = args.imgs if args.imgs else [5, 13]
 
     today = time.strftime("%y%m%d", time.localtime(time.time()))
     # label_test = '1'

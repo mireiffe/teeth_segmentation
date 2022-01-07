@@ -25,14 +25,20 @@ class RefinePreER():
         self.pre_er = pre_er
         self.measureWidth()
 
+        self.bar_er = np.copy(pre_er)
+        self.m, self.n = self.bar_er.shape
+
+        self.removeHoles()
+
         ########################################
         rein = Reinitial(width=None)
-        lbl0 = label(self.pre_er, background=1)
+        rein2 = Reinitial()
+        lbl0 = label(self.bar_er, background=1)
         kps = np.unique(np.append(np.unique(lbl0[[0, -1], :]), np.unique(lbl0[:, [0, -1]])))
-        temp = self.pre_er
+        temp = self.bar_er
         for kp in kps:
             temp = np.where(lbl0 == kp, 1, temp)
-        phi = rein.getSDF(self.pre_er - .5)
+        phi = rein.getSDF(self.bar_er - .5)
 
         phi1 = np.copy(phi)
         mem = np.zeros_like(phi)
@@ -41,26 +47,42 @@ class RefinePreER():
             _reg = np.zeros_like(lbl)
             for l in np.unique(lbl)[1:]:
                 _r = np.where(lbl == l, True, False)
-                if np.min(phi1 * _r) <= -3:
+                if np.min(phi1 * _r) <= -5:
                     _reg += _r
             if _reg.sum() == 0:
                 break
             phi1 += _reg
             mem += _reg
 
-
-        # phi1 = phi**3 + (5 * self.wid_er * (ng > .75) * (phi < 0))**3
         lbl12 = label(phi1 < 0)
         for l in np.unique(lbl12)[1:]:
             _r = np.where(lbl12 == l, 1, 0)
-            if _r.sum() < 10:
+            if _r.sum() < 15:
                 phi1 = np.where(_r, -phi1, phi1)
 
-        plt.figure(); plt.imshow(self.pre_er, 'gray'); plt.contour(phi1, levels=[0], colors='lime')
+        # plt.figure(); plt.imshow(self.bar_er, 'gray'); plt.contour(phi1, levels=[0], colors='lime')
 
-        phi2 = rein.getSDF(np.where(phi1 < 0, -1., 1))
-        reinfmm = Reinitial(fmm=True)
+        _ker = mts.gaussfilt(cv2.dilate(self.bar_er, np.ones((13, 13))), sig=1)
+        _inp = rein2.getSDF(.5 - (phi1 < 0))[np.newaxis, ...]
+        phi12 = self.evolve2(_inp, _ker, dt=.3, mu=0.1, nu=.01, reinterm=10, visterm=1, tol=1, max_iter=1500)
         
+        reinfmm = Reinitial(fmm=True)
+        lbl2 = label(phi12 < 0)[0, ...]
+        phi2 = []
+        n_phis = len(np.unique(lbl2)[1:])
+        cmap = plt.cm.get_cmap('gist_ncar', n_phis)
+        for l in np.unique(lbl2)[1:]:
+            _r = np.where(lbl2 == l, True, False)
+            _phi = rein2.getSDF(.5 -_r)
+            phi2.append(_phi)
+        # plt.figure(); plt.imshow(self.bar_er, 'gray');
+        # for i, ph in enumerate(phi2):
+        #     plt.contour(ph, levels=[0], colors=[cmap(i)])
+
+        phi3 = self.evolve(phi2, self.bar_er, dt=.3, mu=1.5, nu=.5, reinterm=3, tol=3, max_iter=200)
+        # phi3 = self.evolve(phi2, self.bar_er, dt=.3, mu=0, nu=1.5, reinterm=10, visterm=3, tol=10, max_iter=500)
+
+
         # lbl2 = label(phi2 < 0)
         # _reg = np.zeros_like(lbl2)
         # for l in np.unique(lbl2)[1:]:
@@ -71,23 +93,40 @@ class RefinePreER():
         #     _reg = _reg + (_phi < 0)
         # phi2 = rein.getSDF(.5 - (_reg > .5))
 
-        lbl2 = label(phi2 < 0)
+        # from gadf import GADF
+        # temp = mts.gaussfilt(self.bar_er, sig=1)[..., np.newaxis]
+        # gadf = GADF(temp, sig=3, epsilon=1)
+        # E = gadf.structTensor(temp)
+        # gE = np.zeros_like(E)
+        # for i in [0, 1]:
+        #     for j in [0, 1]:
+        #         gE = mts.gaussfilt(E[:, :, i, j])
+        # Q, v = gadf.eigvecSort(E, values=True)
+        # q1 = Q[..., 0]
+        # q2 = Q[..., 1]
+        # v2 = v[..., 1]
+
+        # plt.figure(); plt.imshow(self.bar_er, 'gray')
+        # plt.quiver(q2[..., 0], q2[..., 1], color='lime', angles='xy', scale_units='xy', scale=1.)
+
+        # lbl2 = label(phi2 < 0)
         # _reg = np.zeros_like(lbl2)
         # for l in np.unique(lbl2)[1:]:
         #     _r = np.where(lbl2 == l, True, False)
         #     _phi = reinfmm.getSDF(.5 -_r)
-        #     _phi = self.evolve(_phi, self.pre_er, dt=1, mu=1, nu=1.5, reinterm=3, tol=3)
+        #     _phi = self.evolve(_phi, self.bar_er, dt=1, mu=1, nu=1.5, reinterm=3, tol=3)
         #     _reg = np.where(_phi < 0, 1., _reg)
         # phi2 = rein.getSDF(.5 - _reg)
 
-        from skimage.segmentation import watershed
-        res = watershed(mts.gaussfilt(self.pre_er), lbl2 - self.pre_er)
-        plt.figure(); plt.imshow(self.pre_er,'gray')
-        for l in np.unique(res)[1:]:
-            tt =reinfmm.getSDF(np.where(res == l, -1, 1))
-            plt.contour(tt, levels=[0], colors='lime')
+        # from skimage.segmentation import watershed
+        # res = watershed(mts.gaussfilt(self.bar_er), lbl2 - self.bar_er)
+        # plt.figure(); plt.imshow(self.img,'gray')
+        # for l in np.unique(res)[1:]:
+        #     tt =reinfmm.getSDF(np.where(res == l, -1, 1))
+        #     # plt.contour(tt, levels=[0], colors='lime')
+        #     plt.imshow(tt < 0, vmax=1 + l / 30, cmap=self.jet_alpha, alpha=.7)
 
-        # plt.figure(); plt.imshow(self.pre_er, 'gray'); plt.contour(phi2, levels=[0], colors='lime')
+        # plt.figure(); plt.imshow(self.bar_er, 'gray'); plt.contour(phi2, levels=[0], colors='lime')
         # plt.show()
 
         _GADF = GADF(self.img)
@@ -95,29 +134,81 @@ class RefinePreER():
         self.erfa = _GADF.Er
 
         self.bar_er = pre_er
-        self.phi0 = phi2 - mem + self.wid_er
+        self.phi0 = phi3
         self.sk = self.skeletonize()
 
         return
         ########################################
 
-    def evolve(self, phi, wall, dt=.3, mu=1, nu=1.5, reinterm=3, tol=3):
-        rein = Reinitial()
+    def evolve(self, phi, wall, dt=.3, mu=1, nu=0.5, reinterm=2, visterm=3, tol=3, max_iter=500):
+        phi = np.array(phi)
+        rein = Reinitial(dt=.2, width=4, tol=0.01, dim_stack=0)
         phi0 = np.copy(phi)
         k = 0
+        cmap = plt.cm.get_cmap('gist_ncar', len(phi))
         while True:
-            kapp = mts.kappa(phi0)[0]
+            dist = 1
+            regs = np.where(phi < dist, phi - dist, 0)
+            all_regs = regs.sum(axis=0)
+            Fc = (- (all_regs - regs) - 1)
 
-            phi = phi0 + dt * (-1 + mu * kapp + nu * wall)
+            kapp = mts.kappa(phi0.transpose((1, 2, 0)))[0].transpose((2, 0, 1))
+
+            phi = phi0 + dt * ( (Fc + mu * kapp) * (1 - wall) + (nu * wall))
+
+            if k % visterm == 0:
+                plt.figure(1)
+                plt.cla()
+                plt.imshow(self.bar_er, 'gray')
+                for i, ph in enumerate(phi):
+                    plt.contour(ph, levels=[0], colors=[cmap(i)], linewidth=1.2)
+                if k % (2*visterm) == 0:
+                    mts.savecfg(f'ppt{k // (2*visterm):03d}.png')
+                plt.title(f'iter = {k:d}')
+                plt.pause(.1)
 
             if k % reinterm == 0:
                 reg0 = np.where(phi0 < 0, 1, 0)
                 reg = np.where(phi < 0, 1, 0)
                 setmn = (reg0 + reg - 2 * reg0 * reg).sum()
                 print(setmn)
-                if (setmn  < tol):
+                if (setmn  < tol) or (k > max_iter):
                     break
                 phi = rein.getSDF(np.where(phi < 0, -1., 1.))
+
+
+            k += 1
+            phi0 = phi
+
+        return phi
+
+    def evolve2(self, phi, wall, dt=.3, mu=.01, nu=0.05, reinterm=2, visterm=3, tol=1, max_iter=500):
+        phi = np.array(phi)
+        rein = Reinitial(dt=.2, width=4, tol=0.01, dim_stack=0)
+        phi0 = np.copy(phi)
+        k = 0
+        while True:
+            kapp = mts.kappa(phi0.transpose((1, 2, 0)))[0].transpose((2, 0, 1))
+
+            phi = phi0 + dt * ( (-1 + mu * kapp) * (1 - wall) + nu * wall)
+
+            if k % visterm == 0:
+                plt.figure(1)
+                plt.cla()
+                plt.imshow(self.bar_er, 'gray')
+                plt.contour(phi[0], levels=[0], colors='lime', linewidth=1.2)
+                plt.title(f'iter = {k:d}')
+                plt.pause(.1)
+
+            if k % reinterm == 0:
+                reg0 = np.where(phi0 < 0, 1, 0)
+                reg = np.where(phi < 0, 1, 0)
+                setmn = (reg0 + reg - 2 * reg0 * reg).sum()
+                print(setmn)
+                if (setmn  < tol) or (k > max_iter):
+                    break
+                phi = rein.getSDF(np.where(phi < 0.1, -1., 1.))
+                # phi = rein.getSDF(phi)
 
 
             k += 1

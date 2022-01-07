@@ -7,6 +7,6 @@ __pycache__
 *.mp4
 forpaper
 
-
+*.png
 *.pdf
 *.mat

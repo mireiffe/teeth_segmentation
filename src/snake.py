@@ -29,6 +29,7 @@ class Snake():
     def snake(self):
         dt = 0.3
         mu = 1
+        reinterm = 3
         n_phis = len(self.phi0)
         cmap = plt.cm.get_cmap('gist_ncar', n_phis)
 
@@ -50,7 +51,7 @@ class Snake():
         k = 0
         while True:
             k += 1
-            if k % 3 == 0:
+            if k % reinterm == 0:
                 phis = Rein.getSDF(np.where(phis < 0, -1., 1.))
 
             dist = 1

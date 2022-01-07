@@ -13,7 +13,7 @@
             "args": [
                 // "--id_reg",
                 // "--ALL",
-                "--pre_er",
+                // "--pre_er",
                 "--refine",
                 // "--snake",
                 // "--img", "-3",

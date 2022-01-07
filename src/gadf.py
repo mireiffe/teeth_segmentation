@@ -161,12 +161,16 @@ class GADF():
 
 
     @staticmethod
-    def eigvecSort(E:np.ndarray) -> tuple:
+    def eigvecSort(E:np.ndarray, values=False) -> tuple:
         v, Q = np.linalg.eig(E)
         _idx = np.argsort(v, axis=-1)[..., ::-1]
         Q_idx = np.stack((_idx, _idx), axis=2)
         sorted_Q = np.take_along_axis(Q, Q_idx, axis=-1)
-        return sorted_Q
+        if values:
+            sorted_v = np.take_along_axis(v, _idx, axis=-1)
+            return sorted_Q, sorted_v
+        else:
+            return sorted_Q
 
     @staticmethod
     def imgrad(img: np.ndarray, order=1, h=1) -> np.ndarray:
