@@ -140,6 +140,7 @@ class RefinePreER():
         return
         ########################################
 
+
     def evolve(self, phi, wall, dt, mu, nu, reinterm, visterm, tol, max_iter):
         phi = np.array(phi)
         rein = Reinitial(dt=.2, width=5, tol=0.01, dim_stack=0)
