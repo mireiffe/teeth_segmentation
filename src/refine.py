@@ -62,9 +62,9 @@ class RefinePreER():
 
         # plt.figure(); plt.imshow(self.bar_er, 'gray'); plt.contour(phi1, levels=[0], colors='lime')
 
-        _ker = mts.gaussfilt(cv2.dilate(self.bar_er, np.ones((13, 13))), sig=1)
+        _ker = mts.gaussfilt(cv2.dilate(self.bar_er, np.ones((15, 15))), sig=1)
         _inp = rein2.getSDF(.5 - (phi1 < 0))[np.newaxis, ...]
-        phi12 = self.evolve2(_inp, _ker, dt=.3, mu=0.1, nu=.01, reinterm=10, visterm=1, tol=1, max_iter=1500)
+        phi12 = self.evolve2(_inp, _ker, dt=.3, mu=0.1, nu=.01, reinterm=10, visterm=1, tol=2, max_iter=1500)
         
         reinfmm = Reinitial(fmm=True)
         lbl2 = label(phi12 < 0)[0, ...]
@@ -79,7 +79,7 @@ class RefinePreER():
         # for i, ph in enumerate(phi2):
         #     plt.contour(ph, levels=[0], colors=[cmap(i)])
 
-        phi3 = self.evolve(phi2, self.bar_er, dt=.3, mu=1.5, nu=.5, reinterm=3, tol=3, max_iter=200)
+        phi3 = self.evolve(phi2, self.bar_er, dt=.3, mu=2, nu=.5, reinterm=3, visterm=3, tol=3, max_iter=200)
         # phi3 = self.evolve(phi2, self.bar_er, dt=.3, mu=0, nu=1.5, reinterm=10, visterm=3, tol=10, max_iter=500)
 
 
@@ -140,9 +140,9 @@ class RefinePreER():
         return
         ########################################
 
-    def evolve(self, phi, wall, dt=.3, mu=1, nu=0.5, reinterm=2, visterm=3, tol=3, max_iter=500):
+    def evolve(self, phi, wall, dt, mu, nu, reinterm, visterm, tol, max_iter):
         phi = np.array(phi)
-        rein = Reinitial(dt=.2, width=4, tol=0.01, dim_stack=0)
+        rein = Reinitial(dt=.2, width=5, tol=0.01, dim_stack=0)
         phi0 = np.copy(phi)
         k = 0
         cmap = plt.cm.get_cmap('gist_ncar', len(phi))
@@ -182,7 +182,7 @@ class RefinePreER():
 
         return phi
 
-    def evolve2(self, phi, wall, dt=.3, mu=.01, nu=0.05, reinterm=2, visterm=3, tol=1, max_iter=500):
+    def evolve2(self, phi, wall, dt, mu, nu, reinterm, visterm, tol, max_iter):
         phi = np.array(phi)
         rein = Reinitial(dt=.2, width=4, tol=0.01, dim_stack=0)
         phi0 = np.copy(phi)
