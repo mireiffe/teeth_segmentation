@@ -79,7 +79,14 @@ class RefinePreER():
         # for i, ph in enumerate(phi2):
         #     plt.contour(ph, levels=[0], colors=[cmap(i)])
 
-        phi3 = self.evolve(phi2, self.bar_er, dt=.3, mu=2, nu=.5, reinterm=3, visterm=3, tol=3, max_iter=200)
+        bar_er = np.copy(self.bar_er)
+        self.len_diag = np.sqrt(self.m**2 + self.n**2)
+        self.removeShorts(param_sz=10)
+
+        small_er = bar_er - self.bar_er
+        sk_ser = skeletonize(small_er)
+
+        phi3 = self.evolve(phi2, self.bar_er, sk_ser, dt=.3, mu=1, nu=.5, reinterm=3, visterm=3, tol=3, max_iter=200)
         # phi3 = self.evolve(phi2, self.bar_er, dt=.3, mu=0, nu=1.5, reinterm=10, visterm=3, tol=10, max_iter=500)
 
 
@@ -133,15 +140,14 @@ class RefinePreER():
         self.fa = _GADF.Fa
         self.erfa = _GADF.Er
 
-        self.bar_er = pre_er
         self.phi0 = phi3
         self.sk = self.skeletonize()
 
         return
         ########################################
 
-
-    def evolve(self, phi, wall, dt, mu, nu, reinterm, visterm, tol, max_iter):
+    def evolve(self, phi, lwall, swall, dt, mu, nu, reinterm, visterm, tol, max_iter):
+        wall = lwall + swall
         phi = np.array(phi)
         rein = Reinitial(dt=.2, width=5, tol=0.01, dim_stack=0)
         phi0 = np.copy(phi)
@@ -155,16 +161,16 @@ class RefinePreER():
 
             kapp = mts.kappa(phi0.transpose((1, 2, 0)))[0].transpose((2, 0, 1))
 
-            phi = phi0 + dt * ( (Fc + mu * kapp) * (1 - wall) + (nu * wall))
+            phi = phi0 + dt * ( (Fc) * (1 - wall) + (mu * kapp) * (1 - lwall) + (nu * wall) )
 
             if k % visterm == 0:
                 plt.figure(1)
                 plt.cla()
-                plt.imshow(self.bar_er, 'gray')
+                plt.imshow(wall, 'gray')
                 for i, ph in enumerate(phi):
                     plt.contour(ph, levels=[0], colors=[cmap(i)], linewidth=1.2)
-                if k % (2*visterm) == 0:
-                    mts.savecfg(f'ppt{k // (2*visterm):03d}.png')
+                # if k % (2*visterm) == 0:
+                #     mts.savecfg(f'ppt{k // (2*visterm):03d}.png')
                 plt.title(f'iter = {k:d}')
                 plt.pause(.1)
 
@@ -315,7 +321,7 @@ class RefinePreER():
         self.removeHoles()
         self.removeShorts()
 
-    def removeShorts(self, param_sz=50):
+    def removeShorts(self, param_sz):
         self.skeletonize()
         tol_len = self.len_diag/ param_sz
         # lbl_sk = label(self.sk, background=0, connectivity=2)

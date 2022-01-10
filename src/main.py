@@ -133,7 +133,7 @@ if __name__=='__main__':
     # imgs = args.imgs if args.imgs else [2, 3, 4, 6]
     # imgs = args.imgs if args.imgs else [9, 10, 11, 16]
     # imgs = args.imgs if args.imgs else [13, 14, 20, 21]
-    imgs = args.imgs if args.imgs else [0]
+    imgs = args.imgs if args.imgs else [13]
     # imgs = args.imgs if args.imgs else [5, 13]
 
     today = time.strftime("%y%m%d", time.localtime(time.time()))
