@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 import myTools as mts
 
 
-
 def distrib(img:np.ndarray, reg):
     nc = img.shape[-1]
     if img.ndim == 3:
