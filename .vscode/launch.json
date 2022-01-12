@@ -13,8 +13,8 @@
             "args": [
                 // "-A",
                 // "--pseudo_er",
-                "--init_contours",
-                // "--snake",
+                // "--init_contours",
+                "--snake",
                 // "--id_region",
                 // "-I", "-3",
                 // "--device", "cuda", "1",

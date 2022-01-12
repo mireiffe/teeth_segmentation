@@ -102,9 +102,8 @@ class TeethSeg():
     def snake(self):
         print(f'\tactive contours...')
         img, per, phi0 = self._dt['img'], self._dt['per'], self._dt['phi0']
-        fa, er = self._dt['gadf'], self._dt['er']
 
-        SNK = Snake(img, per, phi0, fa, er)
+        SNK = Snake(img, per, phi0)
         phi_res = SNK.snake()
         
         self._dt.update({

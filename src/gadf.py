@@ -38,7 +38,10 @@ class GADF():
         return er
 
     def delEr(self, er):
-        gimg = self.img_orig.mean(axis=2)
+        if self.c == 1:
+            gimg = self.img_orig
+        else:
+            gimg = self.img_orig.mean(axis=2)
         _lbl = label(er, background=0,connectivity=1)
         
         N = {}

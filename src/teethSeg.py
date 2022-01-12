@@ -18,6 +18,7 @@ from torch.utils.data import DataLoader
 # morphological imaging libs
 from skimage.measure import label
 from skimage.morphology import skeletonize
+from scipy.ndimage.morphology import distance_transform_edt
 
 # custom libs
 from gadf import GADF
@@ -322,41 +323,95 @@ class Snake():
     def __init__(self, img:np.ndarray, per:np.ndarray, phi0) -> None:
         self.img = img
         self.per = per
-        self.phi0 = phi0
-
-        GF = GADF(self.img, )
-        self.fa = 1
-
         self.m, self.n = self.per.shape
-        self.lbl_er =  label(self.er, background=0, connectivity=1)
+
+        # find GADF for gray img
+        GF = GADF(self.img.mean(axis=2))
+        self.fa = GF.Fa
+        self.er = GF.Er
+
+        self.wid_er = self.measureWidth(self.per)
+        self.rein = Reinitial(dt=.2, width=5, tol=0.01, dim_stack=0)
+
+        self.phi0 = self.sepRegions(phi0)
+
+    
+    def sepRegions(self, phi):
+        # # _rein = Reinitial(dt=.2, width=self.wid_er * 3, tol=0.01, fmm=True, dim_stack=0)
+        # _rein = Reinitial(dt=.2, width=self.wid_er * 3, tol=0.01, fmm=True)
+        # num_phis = 5
+
+        # lbl_phi = label(np.where(phi < 0, 1., 0.), background=0, connectivity=1).sum(axis=0)
+        # num_l = np.max(lbl_phi)
+
+        # ids = {}
+        # for l in np.unique(lbl_phi)[1:]:
+        #     _reg = np.where(lbl_phi == l, 1., 0.)
+        #     _phi = _rein.getSDF(.5 - _reg)
+        #     adj_l = np.setdiff1d(np.where(_phi < self.wid_er * 3, lbl_phi, 0.), [0, l])
+
+        #     ids[]
+
+        _rein = Reinitial(dt=.2, width=self.wid_er * 3, tol=0.01, fmm=True)
+        lbl_phi = label(np.where(phi < 0, 1., 0.), background=0, connectivity=1).sum(axis=0)
+        phis = []
+        for l in np.unique(lbl_phi)[1:]:
+            _reg = np.where(lbl_phi == l, 1., 0.)
+            phis.append(_rein.getSDF(.5 - _reg))
+
+        return np.array(phis)
+
+    def measureWidth(self, per):
+        sk_idx = np.where(skeletonize(per) == 1)
+        tot_len = len(sk_idx[0])
+        np.random.seed(900314)
+        sel_idx = np.random.choice(tot_len, tot_len // 10, replace=False)
+
+        wid_er = []
+        for si in sel_idx:
+            _w = 0
+            _x = sk_idx[1][si]
+            _y = sk_idx[0][si]
+            while True:
+                y0 = _y-_w-1 if _y-_w-1 >= 0 else None
+                x0 = _x-_w-1 if _x-_w-1 >= 0 else None
+                _ptch = per[y0:_y+_w+2, x0:_x+_w+2]
+                if _ptch.sum() < _ptch.size:
+                    wid_er.append(2*_w + 1)
+                    break
+                else:
+                    _w += 1
+        mu = sum(wid_er) / len(sel_idx)
+        sig = np.std(wid_er)
+        Z_45 = 1.65     # standard normal value for 90 %
+        return Z_45 * sig / np.sqrt(tot_len // 10) + mu
 
     def snake(self):
         dt = 0.3
         mu = 1
         reinterm = 3
-        n_phis = len(self.phi0)
-        cmap = plt.cm.get_cmap('gist_ncar', n_phis)
 
-        # Rein = Reinitial(dt=.2, width=4, tol=0.01, dim_stack=0, fmm=True)
-        Rein = Reinitial(dt=.2, width=4, tol=0.01, dim_stack=0)
+        n_phis = len(self.phi0)
+        cmap = plt.cm.get_cmap('gist_rainbow', n_phis)
+
         teg = [ThreeRegions(self.img) for nph in range(n_phis)]
 
         phis = np.copy(self.phi0)
 
-        stop_reg = np.ones_like(self.bar_er)
+        stop_reg = np.ones_like(self.per)
         stop_reg[2:-2, 2:-2] = 0
         
-        # oma = cv2.dilate(self.erfa * self.bar_er, kernel=np.ones((3, 3)), iterations=1)
-        self.use_er = self.erfa * self.bar_er
+        # self.use_er = self.er * self.per
+        self.use_er = self.er
         oma = self.use_er
         omc = (1 - oma) * (1 - stop_reg)
-        oms = (self.bar_er - oma) * (1 - stop_reg) 
+        oms = (self.per - oma) * (1 - stop_reg)
 
         k = 0
         while True:
             k += 1
             if k % reinterm == 0:
-                phis = Rein.getSDF(np.where(phis < 0, -1., 1.))
+                phis = self.rein.getSDF(np.where(phis < 0, -1., 1.))
 
             dist = 1
             regs = np.where(phis < dist, phis - dist, 0)
@@ -367,17 +422,16 @@ class Snake():
                 teg[i].setting(phis[i])
 
             gx, gy = mts.imgrad(phis.transpose((1, 2, 0)))
-            Fa = - (gx.transpose((2, 0, 1)) * self.fa[..., 1] + gy.transpose((2, 0, 1)) * self.fa[..., 0])
+            Fa = - (gx * self.fa[..., 1] + gy * self.fa[..., 0]).transpose((2, 0, 1))
             _Fb = np.array([- tg.force() for tg in teg])
-            Fb = mts.gaussfilt((_Fb).transpose((1, 2, 0)), 1).transpose((2, 0, 1))
+            Fb = mts.gaussfilt(_Fb, sig=1, stackdim=0)
 
-            kap = mts.kappa(phis.transpose((1, 2, 0)))[0].transpose((2, 0, 1))
-            # F = (Fa + 5*mu*kap)*oma + (Fc + mu*kap)*omc
+            kap = mts.kappa(phis, stackdim=0)[0]
             F = Fa*oma + Fb*oms + Fc*omc + mu*kap
             new_phis = phis + dt * F
 
             err = np.abs(new_phis - phis).sum() / new_phis.size
-            if err < 1E-04 or k > 200:
+            if err < 1E-04 or k > 150:
             # if err < 1E-04 or k > 1:
                 break
         
@@ -385,7 +439,7 @@ class Snake():
                 plt.figure(1)
                 plt.cla()
                 plt.imshow(self.img)
-                plt.imshow(self.bar_er, mts.colorMapAlpha(plt), vmax=2)
+                plt.imshow(self.per, mts.colorMapAlpha(plt), vmax=2)
                 plt.imshow(oma, vmax=1.3, cmap=mts.colorMapAlpha(plt))
                 for i, ph in enumerate(new_phis):
                     _pr = np.where(ph > 0)
