@@ -1,6 +1,5 @@
 # system libs
 import os
-import sys
 from os.path import join, dirname, abspath
 from configparser import ConfigParser, ExtendedInterpolation
 
@@ -132,29 +131,26 @@ class InitContour():
         self.per0 = per0
         self.m, self.n = self.per0.shape
         self.preset()
+        self.per = mts.imDilErod(
+            self.per, rad=max(round(self.wid_er / 1.5), 1),
+            kernel_type='circular')
 
         rein_all = Reinitial(width=None)
         self.rein_w5 = Reinitial(width=5, dim_stack=0)
         phi = rein_all.getSDF(self.per - .5)
 
         # get landmarks
-        phi_lm = np.copy(phi)
-        while True:
-            _lbl = label(phi_lm < 0)
-            _reg = np.zeros_like(_lbl)
-            for l in np.unique(_lbl)[1:]:
-                _r = np.where(_lbl == l, True, False)
-                if np.min(phi_lm * _r) <= -5:
-                    _reg += _r
-            if _reg.sum() == 0:
-                break
-            phi_lm += _reg
+        lmk = self.getLandMarks(phi)
 
-        _ker = mts.gaussfilt(cv2.dilate(self.per, np.ones((15, 15))), sig=1)
-        _inp = self.rein_w5.getSDF(.5 - (phi_lm[np.newaxis, ...] < 0))
+        # bring them back
+        phi_back = self.bringBack(lmk, self.per, dt=.3, mu=0.1, nu=.05, reinterm=10, visterm=1, tol=2, max_iter=1500)
 
-        phi_setup = self.dragging(_inp, _ker, dt=.3, mu=0.1, nu=.01, reinterm=10, visterm=1, tol=2, max_iter=1500)
-        phi_init = self.evolve(phi_setup, self.per, dt=.3, mu=1, nu=.5, reinterm=3, visterm=3, tol=3, max_iter=200)
+        # separate level sets 
+        reg_sep = self.sepRegions(phi_back)
+        phi_sep = self.rein_w5.getSDF(.5 - np.array(reg_sep))
+
+        # initials
+        phi_init = self.evolve(phi_sep, self.per, dt=.3, mu=1, nu=.5, reinterm=3, visterm=3, tol=3, max_iter=200)
 
         self.phi0 = phi_init
         return
@@ -164,10 +160,36 @@ class InitContour():
         self.per = self.removeHoles(self.per0, param_sz=100)
         self.per = self.removeShorts(self.per, param_sz=100)
 
+    def getLandMarks(self, phi):
+        while True:
+            _lbl = label(phi < 0)
+            _reg = np.zeros_like(_lbl)
+            for l in np.unique(_lbl)[1:]:
+                _r = np.where(_lbl == l, True, False)
+                if np.min(phi * _r) <= -5:
+                    _reg += _r
+            if _reg.sum() == 0:
+                break
+            phi += _reg
+        return phi
+
+    def sepRegions(self, phi_back):
+        lbl_per = label(self.per, background=1, connectivity=1)
+        lbl_back = label(phi_back[0] < 0, background=0, connectivity=1)
+        reg_sep = [np.zeros_like(phi_back[0]), ]
+        for l in np.unique(lbl_per)[1:]:
+            _backs = np.setdiff1d(np.unique(lbl_back * (lbl_per == l)), [0])
+            if len(reg_sep) < len(_backs):
+                for _ in range(len(_backs) - len(reg_sep)):
+                    reg_sep.append(np.zeros_like(phi_back[0]))
+            for _i, _l in enumerate(_backs):
+                reg_sep[_i] += np.where(lbl_back == _l, 1., 0.)
+        return reg_sep
+
     def evolve(self, phi, wall, dt, mu, nu, reinterm, visterm, tol, max_iter):
         phi0 = np.copy(phi)
         k = 0
-        cmap = plt.cm.get_cmap('gist_ncar', len(phi))
+        cmap = plt.cm.get_cmap('gist_rainbow', len(phi))
         while True:
             dist = 1
             regs = np.where(phi < dist, phi - dist, 0)
@@ -201,7 +223,15 @@ class InitContour():
             phi0 = phi
         return phi
 
-    def dragging(self, phi, wall, dt, mu, nu, reinterm, visterm, tol, max_iter):
+    def bringBack(self, reg, per, dt, mu, nu, reinterm, visterm, tol, max_iter):
+        wall = mts.gaussfilt(cv2.dilate(per, np.ones((15, 15))), sig=1)
+        lbl_per = label(per, background=1, connectivity=1)
+        for l in np.unique(lbl_per)[1:]:
+            _r = np.where(lbl_per == l)
+            if (wall > 0.01)[_r].sum() == len(_r[0]):
+                wall[_r] = 0
+
+        phi = self.rein_w5.getSDF(.5 - (reg[np.newaxis, ...] < 0))
         phi0 = np.copy(phi)
         k = 0
         while True:
@@ -289,15 +319,16 @@ class InitContour():
 
 
 class Snake():
-    def __init__(self, img:np.ndarray, bar_er:np.ndarray, phi0, fa, er) -> None:
+    def __init__(self, img:np.ndarray, per:np.ndarray, phi0) -> None:
         self.img = img
-        self.bar_er = bar_er
+        self.per = per
         self.phi0 = phi0
-        self.fa = fa
-        self.erfa = er
 
-        self.m, self.n = self.bar_er.shape
-        self.lbl_er =  label(self.erfa, background=0, connectivity=1)
+        GF = GADF(self.img, )
+        self.fa = 1
+
+        self.m, self.n = self.per.shape
+        self.lbl_er =  label(self.er, background=0, connectivity=1)
 
     def snake(self):
         dt = 0.3

@@ -91,15 +91,11 @@ class TeethSeg():
 
         self._dt.update({
             'phi0': initC.phi0, 'per': initC.per,
-            'gadf': initC.fa, 'er': initC.er,
             })
         mts.saveFile(self._dt, self.path_dict)
 
         self.sts.imcontour(img, initC.phi0, 'phi0_img.pdf')
         self.sts.imcontour(initC.per, initC.phi0, 'phi0_per.pdf', cmap='gray')
-        self.sts.imshow(initC.er, 'er.png', cmap='gray')
-        self.sts.imshow(initC.per * initC.er, 'use_er.png', cmap='gray')
-        self.sts.imshows([initC.per, initC.er], 'er_per.png', cmap=['gray', jet_alpha], alphas=[None, None])
 
         return 0
 
@@ -108,12 +104,18 @@ class TeethSeg():
         img, per, phi0 = self._dt['img'], self._dt['per'], self._dt['phi0']
         fa, er = self._dt['gadf'], self._dt['er']
 
-        snk = Snake(img, per, phi0, fa, er)
-        phi_res = snk.snake()
+        SNK = Snake(img, per, phi0, fa, er)
+        phi_res = SNK.snake()
         
-        self._dt.update({'phi_res', phi_res})
+        self._dt.update({
+            'phi_res': phi_res, 'gadf': SNK.fa, 
+            'er': SNK.er,
+        })
         mts.saveFile(self._dt, self.path_dict)
 
+        self.sts.imshow(SNK.er, 'er.png', cmap='gray')
+        self.sts.imshow(per * SNK.er, 'use_er.png', cmap='gray')
+        self.sts.imshows([per, SNK.er], 'er_per.png', cmap=['gray', jet_alpha], alphas=[None, None])
         self.sts.imcontour(img, phi_res, 'phires_img.pdf')
         return 0
 
