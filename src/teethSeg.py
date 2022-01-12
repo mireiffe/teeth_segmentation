@@ -151,7 +151,8 @@ class InitContour():
         phi_sep = self.rein_w5.getSDF(.5 - np.array(reg_sep))
 
         # initials
-        phi_init = self.evolve(phi_sep, self.per, dt=.3, mu=1, nu=.5, reinterm=3, visterm=3, tol=3, max_iter=200)
+        _per = cv2.dilate(self.per, np.ones((3, 3)))
+        phi_init = self.evolve(phi_sep, _per, dt=.3, mu=3, nu=.5, reinterm=2, visterm=2, tol=2, max_iter=200)
 
         self.phi0 = phi_init
         return
@@ -387,8 +388,8 @@ class Snake():
         return Z_45 * sig / np.sqrt(tot_len // 10) + mu
 
     def snake(self):
-        dt = 0.3
-        mu = 1
+        dt = 0.2
+        mu = 2
         reinterm = 3
 
         n_phis = len(self.phi0)
@@ -402,10 +403,12 @@ class Snake():
         stop_reg[2:-2, 2:-2] = 0
         
         # self.use_er = self.er * self.per
-        self.use_er = self.er
+        # self.use_er = cv2.dilate(self.er.astype(float), kernel=np.ones((3, 3)))
+        self.use_er = self.er * ((phis > -1).sum(axis=0) == n_phis)
         oma = self.use_er
         omc = (1 - oma) * (1 - stop_reg)
-        oms = (self.per - oma) * (1 - stop_reg)
+        # oms = (self.per - oma) * (1 - stop_reg)
+        oms = (1 - oma) * (1 - stop_reg)
 
         k = 0
         while True:
@@ -419,15 +422,15 @@ class Snake():
             Fc = (- (all_regs - regs) - 1)
 
             for i in range(n_phis):
-                teg[i].setting(phis[i])
+                teg[i].setting(phis[i, ...])
 
             gx, gy = mts.imgrad(phis.transpose((1, 2, 0)))
-            Fa = - (gx * self.fa[..., 1] + gy * self.fa[..., 0]).transpose((2, 0, 1))
-            _Fb = np.array([- tg.force() for tg in teg])
-            Fb = mts.gaussfilt(_Fb, sig=1, stackdim=0)
+            Fa = - (gx.transpose((2, 0, 1)) * self.fa[..., 1] + gy.transpose((2, 0, 1)) * self.fa[..., 0])
+            _Fs = np.array([- tg.force() for tg in teg])
+            Fs = mts.gaussfilt(_Fs, sig=1, stackdim=0)
 
             kap = mts.kappa(phis, stackdim=0)[0]
-            F = Fa*oma + Fb*oms + Fc*omc + mu*kap
+            F = .5*Fa*oma + Fs*oms + Fc*omc + mu*kap
             new_phis = phis + dt * F
 
             err = np.abs(new_phis - phis).sum() / new_phis.size
@@ -439,8 +442,8 @@ class Snake():
                 plt.figure(1)
                 plt.cla()
                 plt.imshow(self.img)
-                plt.imshow(self.per, mts.colorMapAlpha(plt), vmax=2)
-                plt.imshow(oma, vmax=1.3, cmap=mts.colorMapAlpha(plt))
+                # plt.imshow(self.per, mts.colorMapAlpha(plt), vmax=2)
+                plt.imshow(oma, alpha=.8, cmap=mts.colorMapAlpha(plt))
                 for i, ph in enumerate(new_phis):
                     _pr = np.where(ph > 0)
                     if len(_pr[0]) == self.m * self.n:

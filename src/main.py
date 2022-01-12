@@ -20,7 +20,10 @@ if __name__ == '__main__':
         args.id_region = True
 
     # imgs = args.imgs if args.imgs else [0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 20, 21]
-    imgs = args.imgs if args.imgs else [0]
+    # imgs = args.imgs if args.imgs else [0, 1, 2, 3, 5, 8, 9]
+    # imgs = args.imgs if args.imgs else [9, 10, 11, 12, 13, 14, 16]
+    imgs = args.imgs if args.imgs else [17, 18, 20, 21, 30, 31, 32, 33]
+    # imgs = args.imgs if args.imgs else [0]
 
     dir_result = join('results', f'er_net/{today}{label_test}/')
     mts.makeDir(dir_result)
