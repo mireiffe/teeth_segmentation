@@ -18,7 +18,6 @@ from torch.utils.data import DataLoader
 # morphological imaging libs
 from skimage.measure import label
 from skimage.morphology import skeletonize
-from scipy.ndimage.morphology import distance_transform_edt
 
 # custom libs
 from gadf import GADF
@@ -141,18 +140,19 @@ class InitContour():
         phi = rein_all.getSDF(self.per - .5)
 
         # get landmarks
-        lmk = self.getLandMarks(phi)
+        lmk = self.getLandMarks(phi, area=5)
+        self.phi_lmk = self.rein_w5.getSDF(.5 - (lmk[np.newaxis, ...] < 0))
 
         # bring them back
-        phi_back = self.bringBack(lmk, self.per, dt=.3, mu=0.1, nu=.05, reinterm=10, visterm=1, tol=2, max_iter=1500)
+        self.phi_back = self.bringBack(self.phi_lmk, self.per, gap=6, dt=.3, mu=0.1, nu=.1, reinterm=10, visterm=1, tol=2, max_iter=1500)
 
         # separate level sets 
-        reg_sep = self.sepRegions(phi_back)
+        reg_sep = self.sepRegions(self.phi_back)
         phi_sep = self.rein_w5.getSDF(.5 - np.array(reg_sep))
 
         # initials
         _per = cv2.dilate(self.per, np.ones((3, 3)))
-        phi_init = self.evolve(phi_sep, _per, dt=.3, mu=3, nu=.5, reinterm=2, visterm=2, tol=2, max_iter=200)
+        phi_init = self.evolve(phi_sep, _per, dt=.3, mu=3, nu=.5, reinterm=3, visterm=3, tol=2, max_iter=200)
 
         self.phi0 = phi_init
         return
@@ -162,13 +162,13 @@ class InitContour():
         self.per = self.removeHoles(self.per0, param_sz=100)
         self.per = self.removeShorts(self.per, param_sz=100)
 
-    def getLandMarks(self, phi):
+    def getLandMarks(self, phi, area):
         while True:
             _lbl = label(phi < 0)
             _reg = np.zeros_like(_lbl)
             for l in np.unique(_lbl)[1:]:
                 _r = np.where(_lbl == l, True, False)
-                if np.min(phi * _r) <= -5:
+                if np.min(phi * _r) <= -area:
                     _reg += _r
             if _reg.sum() == 0:
                 break
@@ -199,7 +199,7 @@ class InitContour():
             Fc = (- (all_regs - regs) - 1)
 
             kapp = mts.kappa(phi0, stackdim=0)[0]
-            phi = phi0 + dt * ( (Fc + mu * kapp) * (1 - wall) + (nu * wall) )
+            phi = phi0 + dt * ( (2*Fc + mu * kapp) * (1 - wall) + (nu * wall) )
 
             if k % visterm == 0:
                 plt.figure(1)
@@ -225,15 +225,15 @@ class InitContour():
             phi0 = phi
         return phi
 
-    def bringBack(self, reg, per, dt, mu, nu, reinterm, visterm, tol, max_iter):
-        wall = mts.gaussfilt(cv2.dilate(per, np.ones((15, 15))), sig=1)
-        lbl_per = label(per, background=1, connectivity=1)
+    def bringBack(self, phi, per, gap, dt, mu, nu, reinterm, visterm, tol, max_iter):
+        wall = mts.gaussfilt(cv2.dilate(per, np.ones((2*gap + 1, 2*gap + 1))), sig=1)
+        # lbl_per = label(per, background=1, connectivity=1)
+        lbl_per = label(np.where(phi[0] < 0, 1, 0), background=0, connectivity=1)
         for l in np.unique(lbl_per)[1:]:
             _r = np.where(lbl_per == l)
             if (wall > 0.01)[_r].sum() == len(_r[0]):
                 wall[_r] = 0
 
-        phi = self.rein_w5.getSDF(.5 - (reg[np.newaxis, ...] < 0))
         phi0 = np.copy(phi)
         k = 0
         while True:
@@ -389,7 +389,7 @@ class Snake():
 
     def snake(self):
         dt = 0.2
-        mu = 2
+        mu = 1
         reinterm = 3
 
         n_phis = len(self.phi0)
@@ -430,7 +430,7 @@ class Snake():
             Fs = mts.gaussfilt(_Fs, sig=1, stackdim=0)
 
             kap = mts.kappa(phis, stackdim=0)[0]
-            F = .5*Fa*oma + Fs*oms + Fc*omc + mu*kap
+            F = 1*Fa*oma + Fs*oms + Fc*omc + mu*kap
             new_phis = phis + dt * F
 
             err = np.abs(new_phis - phis).sum() / new_phis.size
@@ -467,12 +467,11 @@ class IdRegion():
 
         self.lbl_reg = self.setReg(self.phi_res)
         self.res = self.regClass()
-        self._saveSteps()
 
     def setReg(self, phis):
         res = -np.ones((self.m, self.n))
         for i, phi in enumerate(phis):
-            if len(np.where(phi < 0)[0]) > self.m * self.n / 750:
+            if len(np.where(phi < 0)[0]) > self.m * self.n / 500:
                 res = np.where(phi < 0, i, res)
         return res
 
@@ -507,7 +506,7 @@ class IdRegion():
         for l in np.unique(lbl):
             if l < 0: continue
             _reg = np.where(lbl == l, 1., 0.)
-            if _reg.sum() < self.m*self.n / 1000:
+            if _reg.sum() < self.m*self.n / 300:
                 reg_nkapp.append(l)
                 continue
 
@@ -523,11 +522,11 @@ class IdRegion():
             n_kapp_n = (kapp_n * reg_cal).sum()
 
             reg_kapp[l] = (n_kapp_p - n_kapp_n) / (reg_cal.sum())
-            if reg_kapp[l] < .1:
+            if reg_kapp[l] < .45:
                 reg_nkapp.append(l)
 
 
-        stimg = (self.img[..., 1] + self.img[..., 2]) - 2*self.img[..., 0]
+        stimg = self.img[..., 1] / (self.img[..., 0] + mts.eps)
         # mu_img = np.mean(self.img, where=np.where(self.img==0, False, True))
         # var_img = np.var(self.img, where=np.where(self.img==0, False, True))
         mu_img = np.mean(stimg, where=np.where(np.abs(stimg) < 1E-04, False, True))
@@ -566,7 +565,7 @@ class IdRegion():
         var_rat = np.var(list(rat_lst.values()))
 
         # mu_img = np.mean(self.img, where=np.where(self.img==0, False, True))
-        stimg = (self.img[..., 1] + self.img[..., 2]) - 2*self.img[..., 0]
+        stimg = self.img[..., 1] / (self.img[..., 0] + mts.eps)
         mu_img = np.mean(stimg, where=np.where(np.abs(stimg) < 1E-04, False, True))
 
         res = np.copy(lbl)
@@ -618,7 +617,7 @@ class IdRegion():
     @staticmethod
     def candVLine(lbl):
         reg2bchck = []
-        thres = .95
+        thres = .80
         for l in np.unique(lbl):
             if l < 0: continue
             _reg = np.where(lbl == l)
@@ -626,7 +625,8 @@ class IdRegion():
             # _x = np.unique(_reg[1])
             # n_samples = max(round(len(_x) / 2.), 1)
             _x = _reg[1]
-            n_samples = max(round(len(_x) / 20.), 1)
+            # n_samples = max(round(len(_x) / 20.), 1)
+            n_samples = len(_x)
             
             np.random.seed(210501)
             samples_x = np.random.choice(_x, n_samples, replace=False)
@@ -663,7 +663,7 @@ class IdRegion():
             # _x = np.unique(_reg[1])
             # n_samples = max(round(len(_x) / 2.), 1)
             _x = _reg[1]
-            n_samples = max(round(len(_x) / 20.), 1)
+            n_samples = max(round(len(_x) / 10.), 1)
             
             np.random.seed(210501)
             samples_x = np.random.choice(_x, n_samples, replace=False)
@@ -726,28 +726,7 @@ class IdRegion():
                 res = np.where(_reg, -1, res)
         return res
 
-    def _showSaveMax(self, obj, name, face=None, contour=None):
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
 
-        ax.imshow(obj)
-        if face is not None:
-            _res = np.where(face < 0, 0, face)
-            plt.imshow(_res, alpha=.4, cmap='rainbow_alpha')
-        if contour is not None:
-            Rein = Reinitial(dt=.1)
-            ReinKapp = ReinitialKapp(iter=10, mu=.1)
-            clrs = ['lime'] * 100
-            for i in range(int(np.max(contour))):
-                _reg = np.where(contour == i+1, -1., 1.)
-                for _i in range(5):
-                    _reg = Rein.getSDF(_reg)
-                    _reg = ReinKapp.getSDF(_reg)
-                plt.contour(_reg, levels=[0], colors=clrs[i], linewidths=1)
-
-        plt.axis('off')
-        plt.savefig(f'{self.dir_img}{name}', dpi=1024, bbox_inches='tight', pad_inches=0)
-        plt.close(fig)
 
 
 class ReinitialKapp(Reinitial):

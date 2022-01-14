@@ -8,7 +8,8 @@ import matplotlib.pyplot as plt
 
 # custom libs
 import myTools as mts
-from teethSeg import PseudoER, InitContour, Snake, IdRegion
+from reinitial import Reinitial
+from teethSeg import PseudoER, InitContour, Snake, IdRegion, ReinitialKapp
 
 # global variables
 jet_alpha = mts.colorMapAlpha(plt)
@@ -94,6 +95,10 @@ class TeethSeg():
             })
         mts.saveFile(self._dt, self.path_dict)
 
+        self.sts.imcontour(img, initC.phi_lmk, 'lmk_img.pdf')
+        self.sts.imcontour(initC.per, initC.phi_lmk, 'lmk_per.pdf')
+        self.sts.imcontour(img, initC.phi_back, 'back_img.pdf')
+        self.sts.imcontour(initC.per, initC.phi_back, 'back_per.pdf')
         self.sts.imcontour(img, initC.phi0, 'phi0_img.pdf')
         self.sts.imcontour(initC.per, initC.phi0, 'phi0_per.pdf', cmap='gray')
 
@@ -113,20 +118,44 @@ class TeethSeg():
         mts.saveFile(self._dt, self.path_dict)
 
         self.sts.imshow(SNK.er, 'er.png', cmap='gray')
-        self.sts.imshow(per * SNK.er, 'use_er.png', cmap='gray')
-        self.sts.imshows([per, SNK.er], 'er_per.png', cmap=['gray', jet_alpha], alphas=[None, None])
+        self.sts.imshow(SNK.use_er, 'use_er.png', cmap='gray')
+        self.sts.imshows([per, SNK.use_er], 'er_useer.png', cmaps=['gray', jet_alpha], alphas=[None, None])
+        self.sts.imshows([per, SNK.er], 'er_per.png', cmaps=['gray', jet_alpha], alphas=[None, None])
         self.sts.imcontour(img, phi_res, 'phires_img.pdf')
+        self.sts.imcontour(SNK.er, phi0, 'phi0_er.png')
+        self.sts.imcontour(SNK.er, phi_res, 'phires_er.png')
         return 0
 
     def idReg(self):
         print(f'\tindentifying regions...')
         img, phi_res = self._dt['img'], self._dt['phi_res']
 
-        ir = IdRegion(img, phi_res)
+        IR = IdRegion(img, phi_res)
 
-        self._dt.update({'lbl_reg': ir.lbl_reg, 'res': ir.res})
+        self._dt.update({'lbl_reg': IR.lbl_reg, 'res': IR.res})
         mts.saveFile(self._dt, self.path_dict)
 
-        self.sts.imshow(ir.lbl_reg, 'lbl_reg.png')
-        self.sts.imshow(ir.res, 'res.png')
-        self._showSaveMax(self.img, 'res_c.pdf', contour=self.res)
+        self.sts.imshow(IR.lbl_reg, 'lbl_reg.png')
+        self.sts.imshow(IR.res, 'res.png')
+        self._showSaveMax(img, 'res_c.pdf', contour=IR.res)
+                
+    def _showSaveMax(self, obj, name, face=None, contour=None):
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+
+        ax.imshow(obj)
+        if face is not None:
+            _res = np.where(face < 0, 0, face)
+            plt.imshow(_res, alpha=.4, cmap='rainbow_alpha')
+        if contour is not None:
+            Rein = Reinitial(dt=.1)
+            ReinKapp = ReinitialKapp(iter=10, mu=.1)
+            clrs = ['lime'] * 100
+            for i in range(int(np.max(contour))):
+                _reg = np.where(contour == i+1, -1., 1.)
+                for _i in range(5):
+                    _reg = Rein.getSDF(_reg)
+                    _reg = ReinKapp.getSDF(_reg)
+                plt.contour(_reg, levels=[0], colors=clrs[i], linewidths=1)
+            self.sts.savecfg(name)
+            plt.close(fig)
