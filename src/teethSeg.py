@@ -137,12 +137,76 @@ class InitContour():
 
         rein_all = Reinitial(width=None)
         self.rein_w5 = Reinitial(width=5, dim_stack=0)
-        phi = rein_all.getSDF(self.per - .5)
+        self.rein_w10 = Reinitial(width=10, dim_stack=2)
 
+        # identification
+        # reg = np.where(rein_all.getSDF(self.per0 - .5) < 0, 1., 0.)
+        reg = 1 - self.per
+        lbl_phi = label(reg, background=0, connectivity=1)
+
+        reg_lmk = np.zeros_like(reg)
+        lst_test = []
+
+        tnb = np.unique(lbl_phi[[0, -1], :])
+        lnr = np.unique(lbl_phi[:, [0, -1]])
+        lst_test = np.union1d(lst_test, np.union1d(tnb, lnr))[1:]
+
+        lst_kapp = {}
+        for l in np.unique(lbl_phi)[1:]:
+            _r = np.where(lbl_phi == l, 1., 0.)
+            _phi = self.rein_w10.getSDF(.5 - _r)
+
+            _kapp = mts.kappa(_phi, mode=0)[0]
+            _kapp = mts.gaussfilt(_kapp, sig=.5)
+
+            reg_cal = (np.abs(_phi) < 1.5)
+            kapp_p = np.where(_kapp > 1E-04, 1, 0)
+            kapp_n = np.where(_kapp < -1E-04, 1, 0)
+
+            n_kapp_p = (kapp_p * reg_cal).sum()
+            n_kapp_n = (kapp_n * reg_cal).sum()
+
+            lst_kapp[l] = (n_kapp_p - n_kapp_n) / (reg_cal.sum())
         
+        for rv, rk in lst_kapp.items():
+            if rk < .1:
+                lst_test = np.union1d(lst_test, rv)
+
+        eig_lst = {}
+        rat_lst = {}
+        cenm_lst = {}
+        for l in np.unique(lbl_phi)[1:]:
+            r_idx = np.where(lbl_phi == l)
+            # y and x order
+            cenm = np.sum(r_idx, axis=1) / len(r_idx[0])
+            cen_idx = r_idx[0] - cenm[0], r_idx[1] - cenm[1]
+
+            Ixx = np.sum(cen_idx[0]**2)
+            Iyy = np.sum(cen_idx[1]**2)
+            Ixy = -np.sum(cen_idx[0]*cen_idx[1])
+
+            intiaT = [[Ixx, Ixy], [Ixy, Iyy]]
+            D, Q = mts.sortEig(intiaT)
+
+            eig_lst[l] = (D, Q)
+            rat_lst[l] = D[0] / D[1]
+            cenm_lst[l] = cenm
+        mu_rat = np.mean(list(rat_lst.values()))
+        var_rat = np.var(list(rat_lst.values()))
+
+        for l in np.unique(lbl_phi)[1:]:
+            _ang = np.abs(eig_lst[l][1][0, 1]) >= np.cos(np.pi / 4)
+            if (rat_lst[l] > mu_rat - 0 * np.sqrt(var_rat)) and (_ang):
+                lst_test = np.union1d(lst_test, l)
+
+        for lt in lst_test:
+            if lt in lbl_phi:
+                reg_lmk = np.where(lbl_phi == lt, 1., reg_lmk)
+        reg_rem = reg - reg_lmk
 
         # get landmarks
-        lmk = self.getLandMarks(phi, area=5)
+        phi_lmk = rein_all.getSDF(.5 - reg_lmk)
+        lmk = self.getLandMarks(phi_lmk, area=5)
         self.phi_lmk = self.rein_w5.getSDF(.5 - (lmk[np.newaxis, ...] < 0))
 
         # bring them back
@@ -505,8 +569,7 @@ class IdRegion():
 
         reg_nkapp = []
         reg_kapp = {}
-        for l in np.unique(lbl):
-            if l < 0: continue
+        for l in np.unique(lbl)[1:]:
             _reg = np.where(lbl == l, 1., 0.)
             if _reg.sum() < self.m*self.n / 300:
                 reg_nkapp.append(l)
