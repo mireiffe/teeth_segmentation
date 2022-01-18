@@ -139,6 +139,8 @@ class InitContour():
         self.rein_w5 = Reinitial(width=5, dim_stack=0)
         phi = rein_all.getSDF(self.per - .5)
 
+        
+
         # get landmarks
         lmk = self.getLandMarks(phi, area=5)
         self.phi_lmk = self.rein_w5.getSDF(.5 - (lmk[np.newaxis, ...] < 0))
