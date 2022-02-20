@@ -1,8 +1,8 @@
 % Na 2014
 clear; close all;
 
-num_img = [0, 1, 5, 8, 17, 18];
-% num_img = [1];
+% num_img = [0, 1, 5, 8, 17, 18];
+num_img = [13];
 
 for ni = num_img
     dir_imgs = '../data/testimgs/';

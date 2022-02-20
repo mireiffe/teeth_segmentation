@@ -135,6 +135,8 @@ class InitContour():
             self.per, rad=max(round(self.wid_er / 1.5), 1),
             kernel_type='circular')
 
+        # self.per = per0
+
         rein_all = Reinitial(width=None)
         self.rein_w5 = Reinitial(width=5, dim_stack=0)
         self.rein_w10 = Reinitial(width=10, dim_stack=2)
@@ -196,7 +198,7 @@ class InitContour():
 
         for l in np.unique(lbl_phi)[1:]:
             _ang = np.abs(eig_lst[l][1][0, 1]) >= np.cos(np.pi / 4)
-            if (rat_lst[l] > mu_rat - 0 * np.sqrt(var_rat)) and (_ang):
+            if (rat_lst[l] > 2.5) and (_ang):
                 lst_test = np.union1d(lst_test, l)
 
         for lt in lst_test:
@@ -210,15 +212,18 @@ class InitContour():
         self.phi_lmk = self.rein_w5.getSDF(.5 - (lmk[np.newaxis, ...] < 0))
 
         # bring them back
-        self.phi_back = self.bringBack(self.phi_lmk, self.per, gap=6, dt=.3, mu=0.1, nu=.1, reinterm=10, visterm=1, tol=2, max_iter=1500)
+        self.phi_back = self.bringBack(self.phi_lmk, self.per, gap=7, dt=.3, mu=0.1, nu=.1, reinterm=10, visterm=1, tol=2, max_iter=1500)
 
         # separate level sets 
         reg_sep = self.sepRegions(self.phi_back)
+        # phi_sep = self.rein_w5.getSDF(.5 - np.array(reg_sep))
+        reg_sep[0] += reg_rem
         phi_sep = self.rein_w5.getSDF(.5 - np.array(reg_sep))
 
         # initials
         _per = cv2.dilate(self.per, np.ones((3, 3)))
         phi_init = self.evolve(phi_sep, _per, dt=.3, mu=3, nu=.5, reinterm=3, visterm=3, tol=2, max_iter=200)
+        # phi_init = self.evolve(phi_sep, self.per, dt=.3, mu=3, nu=.5, reinterm=3, visterm=3, tol=2, max_iter=200)
 
         self.phi0 = phi_init
         return
@@ -455,7 +460,7 @@ class Snake():
 
     def snake(self):
         dt = 0.2
-        mu = 1
+        mu = 2
         reinterm = 3
 
         n_phis = len(self.phi0)

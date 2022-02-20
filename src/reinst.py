@@ -1,5 +1,4 @@
 import numpy as np
-from time import time
 from skimage.measure import label
 from reinitial import Reinitial
 import matplotlib.pyplot as plt

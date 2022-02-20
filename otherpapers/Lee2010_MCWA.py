@@ -12,7 +12,8 @@ from reinitial import Reinitial
 
 from scipy.io import savemat, loadmat
 
-num_img = [0, 1, 5, 8, 17, 18]
+# num_img = [0, 1, 5, 8, 17, 18]
+num_img = [13]
 
 rein = Reinitial(width=2)
 
@@ -37,7 +38,7 @@ for ni in num_img:
         _reg = -1 * (res == l) + 1 * (res != l) * (res != 0)
         _phi = rein.getSDF(_reg)
     
-        plt.contour(_phi, levels=[0], colors='lime', linewidths=1)
+        plt.contour(_phi, levels=[0], colors='lime', linewidths=1.2)
     #plt.show()
     plt.axis('off')
     # plt.savefig(f'/home/users/mireiffe/Documents/Python/TeethSeg/otherpapers/Lee2010_MCWA/{300000+ni}.pdf', dpi=256, bbox_inches='tight', pad_inches=0)

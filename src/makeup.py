@@ -39,6 +39,9 @@ def get_args():
     parser.add_argument("-A", "--ALL", dest="ALL",
                              required=False, action='store_true',
                              help="Do every process in a row")
+    parser.add_argument("-r", "--regen", dest="regen",
+                             required=False, action='store_true',
+                             help="Re-generate results")
     parser.add_argument("--cfg", dest="path_cfg", type=str, default='cfg/inference.ini',
                              required=False, metavar="CFG", 
                              help="configuration file")
@@ -138,6 +141,12 @@ class TeethSeg():
         self.sts.imshow(IR.lbl_reg, 'lbl_reg.png')
         self.sts.imshow(IR.res, 'res.png')
         self._showSaveMax(img, 'res_c.pdf', contour=IR.res)
+
+    def reGen(self):
+        print(f'\tregenerating results...')
+        img, res = self._dt['img'], self._dt['res']
+
+        self._showSaveMax(img, 'res_c.pdf', contour=res)
                 
     def _showSaveMax(self, obj, name, face=None, contour=None):
         fig = plt.figure()
@@ -156,6 +165,6 @@ class TeethSeg():
                 for _i in range(5):
                     _reg = Rein.getSDF(_reg)
                     _reg = ReinKapp.getSDF(_reg)
-                plt.contour(_reg, levels=[0], colors=clrs[i], linewidths=1)
+                plt.contour(_reg, levels=[0], colors=clrs[i], linewidths=1.5)
             self.sts.savecfg(name)
             plt.close(fig)
