@@ -13,7 +13,7 @@ from reinitial import Reinitial
 
 class RefinePreER():
     jet_alpha = mts.colorMapAlpha(plt)
-    brg_alpha = mts.colorMapAlpha(plt, _cmap='brg')
+    brg_alpha = mts.colorMapAlpha(plt, cmap='brg')
 
     def __init__(self, img, pre_er, sts: mts.SaveTools):
         self.img = img

@@ -1,3 +1,4 @@
+from turtle import back
 import numpy as np
 import matplotlib.pyplot as plt
 from numpy.lib.arraysetops import unique
@@ -27,15 +28,15 @@ class Snake():
         self.phi_res = self.snake()
 
     def snake(self):
-        self.phi0 = self.phi0[2:3]
-        # self.phi0 = [self.phi0[i] for i in [2, 0, 1, 3, 9]]
+        # self.phi0 = self.phi0[2:3]
+        self.phi0 = [self.phi0[i] for i in [2, 0, 1, 3, 9]]
         # self.img = self.img[85:155, 110:163, ...]
         # self.bar_er = self.bar_er[85:155, 110:163]
         # self.erfa = self.erfa[85:155, 110:163]
         # self.fa = self.fa[85:155, 110:163, ...]
-        
+
         dt = 0.2
-        mu = .5
+        mu = 2
         n_phis = len(self.phi0)
         cmap = plt.cm.get_cmap('gist_ncar', n_phis)
 
@@ -55,10 +56,16 @@ class Snake():
         omc = (1 - oma) * (1 - stop_reg)
         oms = (self.bar_er - oma) * (1 - stop_reg) 
 
+        lbl_er = label(oma, background=0)
+        for l in np.unique(lbl_er)[1:]:
+            _r = np.where(lbl_er == l, 1., 0)
+            if _r.sum() < 3:
+                oma = np.where(lbl_er == l, 0, oma)
+
         k = 0
         while True:
             k += 1
-            if k % 3 == 0:
+            if k % 4 == 0:
                 phis = Rein.getSDF(np.where(phis < 0, -1., 1.))
                 # phis = Rein.getSDF(phis)
 
@@ -73,8 +80,8 @@ class Snake():
             gx, gy = mts.imgrad(phis.transpose((1, 2, 0)))
             Fa = - (gx.transpose((2, 0, 1)) * self.fa[..., 1] + gy.transpose((2, 0, 1)) * self.fa[..., 0])
             _Fb = np.array([- tg.force() for tg in teg])
-            Fb = mts.gaussfilt((_Fb).transpose((1, 2, 0)), 1)[np.newaxis, ...]
-            # Fb = mts.gaussfilt((_Fb).transpose((1, 2, 0)), 1).transpose((2, 0, 1))
+            # Fb = mts.gaussfilt((_Fb).transpose((1, 2, 0)), 1)[np.newaxis, ...]
+            Fb = mts.gaussfilt((_Fb).transpose((1, 2, 0)), 1).transpose((2, 0, 1))
 
             kap = mts.kappa(phis.transpose((1, 2, 0)))[0].transpose((2, 0, 1))
             # F = (Fa + 5*mu*kap)*oma + (Fc + mu*kap)*omc
@@ -91,20 +98,22 @@ class Snake():
                 plt.cla()
                 # plt.imshow(self.img)
                 # plt.imshow(1 - self.bar_er, 'gray', vmin=-1)
-                plt.imshow(1 - self.bar_er[85:155, 110:163], 'gray', vmin=-1)
-                # plt.imshow((Fb + Fc).sum(axis=0)[85:155, 110:163], vmin=-0.3, cmap=mts.colorMapAlpha(plt, _cmap='rainbow'))
-                plt.imshow(oma[85:155, 110:163], cmap=mts.colorMapAlpha(plt, _cmap='gnuplot'), vmax=1.1)
+                plt.imshow(self.bar_er[85:152, 140:166], 'gray')
+                # plt.imshow((Fb + Fc).sum(axis=0)[85:155, 110:163], vmin=-0.3, cmap=mts.colorMapAlpha(plt, cmap='rainbow'))
+                plt.imshow(oma[85:152, 140:166], cmap=mts.colorMapAlpha(plt, cmap='gnuplot'), vmax=1.1)
                 for i, ph in enumerate(new_phis):
                     _pr = np.where(ph > 0)
                     if len(_pr[0]) == self.m * self.n:
                         continue
                     if i == 0:
-                        plt.contour(ph[85:155, 110:163], levels=[0], colors='lime', linewidths=3.5)
+                        plt.contour(ph[85:152, 140:166], levels=[0], colors='lime', linewidths=6)
+                    elif i == 1:
+                        plt.contour(ph[85:152, 140:166], levels=[0], colors='blue', linewidths=6)
                     else:
-                        plt.contour(ph[85:155, 110:163], levels=[0], colors='red', linewidths=3.5)
+                        plt.contour(ph[85:152, 140:166], levels=[0], colors='red', linewidths=6)
                 # plt.title(f'iter = {k:d}')
                 # plt.show()
-                mts.savecfg(f'/home/users/mireiffe/Documents/Python/TeethSeg/forpaper/ksiam_evolve_ex/ex{k}')
+                mts.savecfg(f'/home/users/mireiffe/Documents/Python/TeethSeg/forpaper/ksiam_evolve_ex2/ex{k}')
                 plt.pause(.1)
 
                 # plt.figure(2)
