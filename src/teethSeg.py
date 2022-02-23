@@ -171,7 +171,7 @@ class InitContour():
             lst_kapp[l] = (n_kapp_p - n_kapp_n) / (reg_cal.sum())
         
         for rv, rk in lst_kapp.items():
-            if rk < .1:
+            if rk < .25:
                 lst_test = np.union1d(lst_test, rv)
 
         eig_lst = {}
@@ -198,7 +198,7 @@ class InitContour():
 
         for l in np.unique(lbl_phi)[1:]:
             _ang = np.abs(eig_lst[l][1][0, 1]) >= np.cos(np.pi / 4)
-            if (rat_lst[l] > 2.5) and (_ang):
+            if (rat_lst[l] > 2) and (_ang):
                 lst_test = np.union1d(lst_test, l)
 
         for lt in lst_test:
@@ -212,17 +212,16 @@ class InitContour():
         self.phi_lmk = self.rein_w5.getSDF(.5 - (lmk[np.newaxis, ...] < 0))
 
         # bring them back
-        self.phi_back = self.bringBack(self.phi_lmk, self.per, gap=7, dt=.3, mu=0.1, nu=.1, reinterm=10, visterm=1, tol=2, max_iter=1500)
+        self.phi_back = self.bringBack(self.phi_lmk, self.per, gap=8, dt=.3, mu=0.1, nu=.1, reinterm=10, visterm=1, tol=2, max_iter=1500)
 
         # separate level sets 
         reg_sep = self.sepRegions(self.phi_back)
-        # phi_sep = self.rein_w5.getSDF(.5 - np.array(reg_sep))
         reg_sep[0] += reg_rem
         phi_sep = self.rein_w5.getSDF(.5 - np.array(reg_sep))
 
         # initials
         _per = cv2.dilate(self.per, np.ones((3, 3)))
-        phi_init = self.evolve(phi_sep, _per, dt=.3, mu=3, nu=.5, reinterm=3, visterm=3, tol=2, max_iter=200)
+        phi_init = self.evolve(phi_sep, _per, dt=.3, mu=2, nu=.5, reinterm=3, visterm=3, tol=2, max_iter=200)
         # phi_init = self.evolve(phi_sep, self.per, dt=.3, mu=3, nu=.5, reinterm=3, visterm=3, tol=2, max_iter=200)
 
         self.phi0 = phi_init
@@ -288,11 +287,12 @@ class InitContour():
                 reg = np.where(phi < 0, 1, 0)
                 setmn = (reg0 + reg - 2 * reg0 * reg).sum()
                 print(setmn)
+                phi = self.rein_w5.getSDF(np.where(phi < 0, -1., 1.))
                 if (setmn  < tol) or (k > max_iter):
                     break
-                phi = self.rein_w5.getSDF(np.where(phi < 0, -1., 1.))
 
             k += 1
+            phi = mts.remove_pos_lvset(phi)
             phi0 = phi
         return phi
 
@@ -407,25 +407,12 @@ class Snake():
 
         self.phi0 = self.sepRegions(phi0)
 
-    
     def sepRegions(self, phi):
-        # # _rein = Reinitial(dt=.2, width=self.wid_er * 3, tol=0.01, fmm=True, dim_stack=0)
-        # _rein = Reinitial(dt=.2, width=self.wid_er * 3, tol=0.01, fmm=True)
-        # num_phis = 5
-
-        # lbl_phi = label(np.where(phi < 0, 1., 0.), background=0, connectivity=1).sum(axis=0)
-        # num_l = np.max(lbl_phi)
-
-        # ids = {}
-        # for l in np.unique(lbl_phi)[1:]:
-        #     _reg = np.where(lbl_phi == l, 1., 0.)
-        #     _phi = _rein.getSDF(.5 - _reg)
-        #     adj_l = np.setdiff1d(np.where(_phi < self.wid_er * 3, lbl_phi, 0.), [0, l])
-
-        #     ids[]
-
         _rein = Reinitial(dt=.2, width=self.wid_er * 3, tol=0.01, fmm=True)
-        lbl_phi = label(np.where(phi < 0, 1., 0.), background=0, connectivity=1).sum(axis=0)
+        lbl_phi = np.zeros_like(phi[0])
+        for ph in phi:
+            _lbl = label(np.where(ph < 0, 1., 0.), background=0, connectivity=1)
+            lbl_phi = np.where(_lbl > .5, _lbl + lbl_phi.max(), lbl_phi)
         phis = []
         for l in np.unique(lbl_phi)[1:]:
             _reg = np.where(lbl_phi == l, 1., 0.)
@@ -460,7 +447,7 @@ class Snake():
 
     def snake(self):
         dt = 0.2
-        mu = 2
+        mu = 1.5
         reinterm = 3
 
         n_phis = len(self.phi0)
@@ -524,6 +511,7 @@ class Snake():
                 # plt.show()
                 plt.pause(.1)
 
+            new_phis = mts.remove_pos_lvset(new_phis)
             phis = new_phis
 
         return new_phis
@@ -795,8 +783,6 @@ class IdRegion():
             if _mu < mu - 1 * sig:
                 res = np.where(_reg, -1, res)
         return res
-
-
 
 
 class ReinitialKapp(Reinitial):

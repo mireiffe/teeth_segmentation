@@ -99,11 +99,12 @@ class TeethSeg():
         mts.saveFile(self._dt, self.path_dict)
 
         self.sts.imcontour(img, initC.phi_lmk, 'lmk_img.pdf')
-        self.sts.imcontour(initC.per, initC.phi_lmk, 'lmk_per.pdf')
+        self.sts.imcontour(initC.per, initC.phi_lmk, 'lmk_per.pdf', cmap='gray')
         self.sts.imcontour(img, initC.phi_back, 'back_img.pdf')
-        self.sts.imcontour(initC.per, initC.phi_back, 'back_per.pdf')
+        self.sts.imcontour(initC.per, initC.phi_back, 'back_per.pdf', cmap='gray')
         self.sts.imcontour(img, initC.phi0, 'phi0_img.pdf')
         self.sts.imcontour(initC.per, initC.phi0, 'phi0_per.pdf', cmap='gray')
+        self.sts.imcontour(per0, initC.phi0, 'phi0_per0.pdf', cmap='gray')
 
         return 0
 
