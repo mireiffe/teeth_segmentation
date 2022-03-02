@@ -159,7 +159,7 @@ class TeethSeg():
             plt.imshow(_res, alpha=.4, cmap='rainbow_alpha')
         if contour is not None:
             Rein = Reinitial(dt=.1)
-            ReinKapp = ReinitialKapp(iter=10, mu=.1)
+            ReinKapp = ReinitialKapp(iter=15, mu=1)
             clrs = ['lime'] * 100
             for i in range(int(np.max(contour))):
                 _reg = np.where(contour == i+1, -1., 1.)

@@ -447,7 +447,7 @@ class Snake():
 
     def snake(self):
         dt = 0.2
-        mu = 1.5
+        mu = 2
         reinterm = 3
 
         n_phis = len(self.phi0)
@@ -492,7 +492,7 @@ class Snake():
             new_phis = phis + dt * F
 
             err = np.abs(new_phis - phis).sum() / new_phis.size
-            if err < 1E-04 or k > 150:
+            if err < 1E-04 or k > 250:
             # if err < 1E-04 or k > 1:
                 break
         
@@ -580,11 +580,12 @@ class IdRegion():
             n_kapp_n = (kapp_n * reg_cal).sum()
 
             reg_kapp[l] = (n_kapp_p - n_kapp_n) / (reg_cal.sum())
-            if reg_kapp[l] < .45:
-                reg_nkapp.append(l)
 
+        for rk, rv in reg_kapp.items():
+            if rv < .25:
+                reg_nkapp.append(rk)
 
-        stimg = self.img[..., 1] / (self.img[..., 0] + mts.eps)
+        stimg = np.where(self.img[..., 0] < 1E-04, 0, self.img[..., 1] / self.img[..., 0])
         # mu_img = np.mean(self.img, where=np.where(self.img==0, False, True))
         # var_img = np.var(self.img, where=np.where(self.img==0, False, True))
         mu_img = np.mean(stimg, where=np.where(np.abs(stimg) < 1E-04, False, True))
@@ -623,7 +624,7 @@ class IdRegion():
         var_rat = np.var(list(rat_lst.values()))
 
         # mu_img = np.mean(self.img, where=np.where(self.img==0, False, True))
-        stimg = self.img[..., 1] / (self.img[..., 0] + mts.eps)
+        stimg = np.where(self.img[..., 0] < 1E-04, 0, self.img[..., 1] / self.img[..., 0])
         mu_img = np.mean(stimg, where=np.where(np.abs(stimg) < 1E-04, False, True))
 
         res = np.copy(lbl)
