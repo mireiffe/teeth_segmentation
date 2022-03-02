@@ -10,7 +10,7 @@ from makeup import get_args, TeethSeg
 # label_test = '_1'
 label_test = ''
 today = time.strftime("%y%m%d", time.localtime(time.time()))
-today = '220224'
+# today = '220224'
 
 if __name__ == '__main__':
     args = get_args()
@@ -24,7 +24,7 @@ if __name__ == '__main__':
     # imgs = args.imgs if args.imgs else [1, 5, 8, 13, 18]
     # imgs = args.imgs if args.imgs else [9, 10, 11, 12, 13, 14, 16]
     # imgs = args.imgs if args.imgs else [17, 18, 20, 21, 30, 31, 32, 33]
-    imgs = args.imgs if args.imgs else [0]
+    imgs = args.imgs if args.imgs else [13]
 
     dir_result = join('results', f'er_net/{today}{label_test}/')
     mts.makeDir(dir_result)

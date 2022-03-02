@@ -135,7 +135,7 @@ class InitContour():
             self.per, rad=max(round(self.wid_er / 1.5), 1),
             kernel_type='circular')
 
-        # self.per = per0
+        self.per = per0
 
         rein_all = Reinitial(width=None)
         self.rein_w5 = Reinitial(width=5, dim_stack=0)
@@ -171,7 +171,7 @@ class InitContour():
             lst_kapp[l] = (n_kapp_p - n_kapp_n) / (reg_cal.sum())
         
         for rv, rk in lst_kapp.items():
-            if rk < .25:
+            if rk < .15:
                 lst_test = np.union1d(lst_test, rv)
 
         eig_lst = {}
@@ -221,8 +221,8 @@ class InitContour():
 
         # initials
         _per = cv2.dilate(self.per, np.ones((3, 3)))
-        phi_init = self.evolve(phi_sep, _per, dt=.3, mu=2, nu=.5, reinterm=3, visterm=3, tol=2, max_iter=200)
-        # phi_init = self.evolve(phi_sep, self.per, dt=.3, mu=3, nu=.5, reinterm=3, visterm=3, tol=2, max_iter=200)
+        # phi_init = self.evolve(phi_sep, _per, dt=.3, mu=2, nu=.5, reinterm=3, visterm=3, tol=2, max_iter=200)
+        phi_init = self.evolve(phi_sep, self.per, dt=.3, mu=3, nu=.5, reinterm=3, visterm=3, tol=2, max_iter=200)
 
         self.phi0 = phi_init
         return
