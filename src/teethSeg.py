@@ -582,7 +582,7 @@ class IdRegion():
             reg_kapp[l] = (n_kapp_p - n_kapp_n) / (reg_cal.sum())
 
         for rk, rv in reg_kapp.items():
-            if rv < .25:
+            if rv < .2:
                 reg_nkapp.append(rk)
 
         stimg = np.where(self.img[..., 0] < 1E-04, 0, self.img[..., 1] / self.img[..., 0])
@@ -764,6 +764,12 @@ class IdRegion():
             
             if int(stats.mode(modes_reg)[0]) == 1:
                 res = np.where(res == l, -1, res)
+
+        ###
+        idx = []
+        for idx[]
+        idx2 = np.where(lbl == 5)
+
         return res
 
     @staticmethod

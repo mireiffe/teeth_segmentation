@@ -11,7 +11,7 @@ sts = mts.SaveTools(dir_save)
 def evolve(phi, img, lbl):
     # phi3
     k = 0
-    clr = ['r', 'g', 'b', 'y', 'violet', 'orange']
+    clr = plt.cm.get_cmap('rainbow', len(phi))
     _phi = np.copy(phi)
     while True:
         kapp, gx, gy, ng = mts.kappa(_phi.transpose((1, 2, 0)))
@@ -28,15 +28,14 @@ def evolve(phi, img, lbl):
             os.mkdir(dir_save + f'Fig8_{lbl}')
         except:
             pass
-        if k % 10 == 0:
+        if k % 1 == 0:
             plt.figure(1)
             plt.clf()
             plt.imshow(img, 'gray')
             for kk, ps in enumerate(_phi):
-                plt.contour(ps, levels=[0], colors=clr[kk], linewidth=1.5)
-            plt.pause(.5)
-            plt.axis('off')
-            plt.savefig(dir_save + f'Fig8_{lbl}/iter{k}.pdf', dpi=1024, bbox_inches='tight', pad_inches=0)
+                plt.contour(ps, levels=[0], colors=[clr(kk)], linewidths=3)
+            plt.pause(.1)
+            mts.savecfg(dir_save + f'Fig8_{lbl}/iter{k:04d}.png')
         if k % 1 == 0:
             _phi = rein.getSDF(_phi)
         if k > 2000: break
@@ -49,14 +48,16 @@ sz = 256
 cen = sz / 2 - .5
 dt = .2
 
-img1 = np.zeros((sz, sz))
-Y, X = np.mgrid[:sz, :sz]
+_sz = int(16/9*sz)
+img1 = np.zeros((sz, _sz))
+Y, X = np.mgrid[:sz, :_sz]
 
-np.random.seed(900315)
-cx = np.random.choice(np.arange(10, sz-10), 6)
-cy = np.random.choice(np.arange(10, sz-10), 6)
-r = np.random.choice(np.arange(10, 50), 6)
-init1 = [np.where((X - cx[ii])**2 + (Y - cy[ii])**2 < r[ii]**2, -1., 1.) for ii in range(6)]
+num_seed = 12
+np.random.seed(900320)
+cx = np.random.choice(np.arange(10, _sz-10), num_seed,)
+cy = np.random.choice(np.arange(10, sz-10), num_seed)
+r = np.random.choice(np.arange(10, 70), num_seed)
+init1 = [np.where((X - cx[ii])**2 + (Y - cy[ii])**2 < r[ii]**2, -1., 1.) for ii in range(num_seed)]
 init1 = np.array(init1)
 phi1 = rein.getSDF(init1)
 
@@ -100,8 +101,8 @@ init4.append(np.where((X - cx[2])**2 + (Y - cy[2])**2 > r[2]**2, -1., 1.))
 init4 = np.array(init4)
 phi4 = rein.getSDF(init4)
 
-# evolve(phi1, img1, 'img1')
+evolve(phi1, img1, 'img1')
 # evolve(phi2, img2, 'img2')
 # evolve(phi3, img3, 'img3')
-evolve(phi4, img4, 'img4')
+# evolve(phi4, img4, 'img4')
 
