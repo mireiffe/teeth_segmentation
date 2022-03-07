@@ -523,8 +523,25 @@ class IdRegion():
         self.phi_res = phi_res
 
         self.m, self.n = self.img.shape[:2]
-
         self.lbl_reg = self.setReg(self.phi_res)
+
+        # stimg = np.where(img[..., 0] < 1E-04, 0, img[..., 1] / img[..., 0] -.35*img[..., 2])
+        # sstimg = (stimg - stimg.min()) / (stimg.max() - stimg.min())
+        # idx = np.where(sstimg >= 1E-04)
+        # temp = cv2.threshold((sstimg[idx] * 255).astype('uint8'), -1, 255, cv2.THRESH_OTSU)
+        # timg = np.zeros_like(stimg)
+        # timg[idx] = temp[1][..., 0]
+
+        # ttimg = cv2.adaptiveThreshold((sstimg * 255).astype('uint8'), 1, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 51, 0)
+
+        # plt.figure()
+        # plt.imshow(img)
+        # plt.figure()
+        # plt.imshow(ttimg, 'gray')
+        # plt.contour(self.lbl_reg, levels=np.unique(self.lbl_reg)[1:], colors='lime', linewidths=3)
+        # plt.show()
+
+        
         self.res = self.regClass()
 
     def setReg(self, phis):
@@ -765,10 +782,37 @@ class IdRegion():
             if int(stats.mode(modes_reg)[0]) == 1:
                 res = np.where(res == l, -1, res)
 
-        ###
+        ### meeting
         idx = []
-        for idx[]
-        idx2 = np.where(lbl == 5)
+        for l in [4, 5, 10, 17, 25]:
+            idx.append(np.where(lbl == l))
+        
+        col = []
+        for ii in idx:
+            col.append(lab[ii])
+
+        p_lab = np.concatenate(col, axis=0)
+
+        p_m_a = np.unravel_index(np.argmax(p_lab[..., 1]), p_lab[..., 1].shape)
+        p_m_b = np.unravel_index(np.argmax(p_lab[..., 2]), p_lab[..., 2].shape)
+        p_init_k = np.array([[100, 0, 0], [50, p_lab[p_m_a[0], 1], p_lab[p_m_a[0], 2]], [50, 0, p_lab[p_m_b[0], 2]]])
+        init_k = (_init_k + p_init_k) / 2
+        kmeans = KMeans(n_clusters=3, init=init_k).fit(p_lab)
+        kmlbl = kmeans.labels_
+
+        lens = []
+        for cc in col:
+            lens.append(len(cc))
+
+        km = []
+        clens = 0
+        for lns in lens:
+            km.append(kmlbl[clens:clens+lns])
+            clens += lns
+
+        temp3 = np.zeros_like(lbl)
+        for ii, id in enumerate(idx):
+            temp3[id] = km[ii] + 1
 
         return res
 
