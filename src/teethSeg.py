@@ -447,7 +447,7 @@ class Snake():
 
     def snake(self):
         dt = 0.2
-        mu = 2
+        mu = 3
         reinterm = 3
 
         n_phis = len(self.phi0)
@@ -511,7 +511,8 @@ class Snake():
                 # plt.show()
                 plt.pause(.1)
 
-            new_phis = mts.remove_pos_lvset(new_phis)
+            new_phis, teg = mts.remove_pos_lvset(new_phis, teg)
+            n_phis = len(new_phis)
             phis = new_phis
 
         return new_phis

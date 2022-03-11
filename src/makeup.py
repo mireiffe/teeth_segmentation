@@ -159,13 +159,13 @@ class TeethSeg():
             plt.imshow(_res, alpha=.4, cmap='rainbow_alpha')
         if contour is not None:
             Rein = Reinitial(dt=.1)
-            ReinKapp = ReinitialKapp(iter=15, mu=1)
+            ReinKapp = ReinitialKapp(iter=10, mu=.5)
             clrs = ['lime'] * 100
             for i in range(int(np.max(contour))):
                 _reg = np.where(contour == i+1, -1., 1.)
                 for _i in range(5):
                     _reg = Rein.getSDF(_reg)
                     _reg = ReinKapp.getSDF(_reg)
-                plt.contour(_reg, levels=[0], colors=clrs[i], linewidths=1.5)
+                plt.contour(_reg, levels=[0], colors=clrs[i], linewidths=2)
             self.sts.savecfg(name)
             plt.close(fig)
