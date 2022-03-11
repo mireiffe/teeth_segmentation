@@ -12,14 +12,14 @@
             "console": "integratedTerminal",
             "args": [
                 // "-A",
-                // "--pseudo_er",
-                // "--init_contours",
+                "--pseudo_er",
+                "--init_contours",
                 // "--snake",
                 // "--id_region",
-                "--regen",
+                // "--regen",
                 // "-I", "-3",
-                // "--device", "cuda", "1",
-                // "--cfg", "cfg/inference.ini"
+                "--device", "cuda", "1",
+                "--cfg", "cfg/inference.ini"
             ]
         }
     ]

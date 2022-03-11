@@ -135,88 +135,32 @@ class InitContour():
             self.per, rad=max(round(self.wid_er / 1.5), 1),
             kernel_type='circular')
 
-        self.per = per0
+        # self.per = per0
 
         rein_all = Reinitial(width=None)
         self.rein_w5 = Reinitial(width=5, dim_stack=0)
         self.rein_w10 = Reinitial(width=10, dim_stack=2)
 
-        # identification
-        # reg = np.where(rein_all.getSDF(self.per0 - .5) < 0, 1., 0.)
-        reg = 1 - self.per
-        lbl_phi = label(reg, background=0, connectivity=1)
-
-        reg_lmk = np.zeros_like(reg)
-        lst_test = []
-
-        tnb = np.unique(lbl_phi[[0, -1], :])
-        lnr = np.unique(lbl_phi[:, [0, -1]])
-        lst_test = np.union1d(lst_test, np.union1d(tnb, lnr))[1:]
-
-        lst_kapp = {}
-        for l in np.unique(lbl_phi)[1:]:
-            _r = np.where(lbl_phi == l, 1., 0.)
-            _phi = self.rein_w10.getSDF(.5 - _r)
-
-            _kapp = mts.kappa(_phi, mode=0)[0]
-            _kapp = mts.gaussfilt(_kapp, sig=.5)
-
-            reg_cal = (np.abs(_phi) < 1.5)
-            kapp_p = np.where(_kapp > 1E-04, 1, 0)
-            kapp_n = np.where(_kapp < -1E-04, 1, 0)
-
-            n_kapp_p = (kapp_p * reg_cal).sum()
-            n_kapp_n = (kapp_n * reg_cal).sum()
-
-            lst_kapp[l] = (n_kapp_p - n_kapp_n) / (reg_cal.sum())
-        
-        for rv, rk in lst_kapp.items():
-            if rk < .15:
-                lst_test = np.union1d(lst_test, rv)
-
-        eig_lst = {}
-        rat_lst = {}
-        cenm_lst = {}
-        for l in np.unique(lbl_phi)[1:]:
-            r_idx = np.where(lbl_phi == l)
-            # y and x order
-            cenm = np.sum(r_idx, axis=1) / len(r_idx[0])
-            cen_idx = r_idx[0] - cenm[0], r_idx[1] - cenm[1]
-
-            Ixx = np.sum(cen_idx[0]**2)
-            Iyy = np.sum(cen_idx[1]**2)
-            Ixy = -np.sum(cen_idx[0]*cen_idx[1])
-
-            intiaT = [[Ixx, Ixy], [Ixy, Iyy]]
-            D, Q = mts.sortEig(intiaT)
-
-            eig_lst[l] = (D, Q)
-            rat_lst[l] = D[0] / D[1]
-            cenm_lst[l] = cenm
-        mu_rat = np.mean(list(rat_lst.values()))
-        var_rat = np.var(list(rat_lst.values()))
-
-        for l in np.unique(lbl_phi)[1:]:
-            _ang = np.abs(eig_lst[l][1][0, 1]) >= np.cos(np.pi / 4)
-            if (rat_lst[l] > 2) and (_ang):
-                lst_test = np.union1d(lst_test, l)
-
-        for lt in lst_test:
-            if lt in lbl_phi:
-                reg_lmk = np.where(lbl_phi == lt, 1., reg_lmk)
-        reg_rem = reg - reg_lmk
-
         # get landmarks
-        phi_lmk = rein_all.getSDF(.5 - reg_lmk)
+        phi_lmk = rein_all.getSDF(self.per - .5)
         lmk = self.getLandMarks(phi_lmk, area=5)
         self.phi_lmk = self.rein_w5.getSDF(.5 - (lmk[np.newaxis, ...] < 0))
+
+        plt.figure(); plt.imshow(self.per, 'gray')
+        for ph in self.phi_lmk:
+            plt.contour(ph, levels=[0], colors='lime', linewidths=3)
+        mts.savecfg('img0_lmk.png')
 
         # bring them back
         self.phi_back = self.bringBack(self.phi_lmk, self.per, gap=8, dt=.3, mu=0.1, nu=.1, reinterm=10, visterm=1, tol=2, max_iter=1500)
 
+        plt.figure(); plt.imshow(self.per, 'gray')
+        for ph in self.phi_back:
+            plt.contour(ph, levels=[0], colors='lime', linewidths=3)
+        mts.savecfg('img0_back.png')
+
         # separate level sets 
         reg_sep = self.sepRegions(self.phi_back)
-        reg_sep[0] += reg_rem
         phi_sep = self.rein_w5.getSDF(.5 - np.array(reg_sep))
 
         # initials
@@ -232,7 +176,8 @@ class InitContour():
         self.per = self.removeHoles(self.per0, param_sz=100)
         self.per = self.removeShorts(self.per, param_sz=100)
 
-    def getLandMarks(self, phi, area):
+    def getLandMarks(self, phi0, area):
+        phi = np.copy(phi0)
         while True:
             _lbl = label(phi < 0)
             _reg = np.zeros_like(_lbl)
