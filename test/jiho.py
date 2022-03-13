@@ -5,16 +5,14 @@ num_games = 5
 
 numbers = np.arange(1, 46)
 prblty =np.ones_like(numbers).astype(float)
-# weights = [[1, 3, 5, 6, 8, 11, 14, 16, 23, 33, 34, 45],
         #   [7, 6, 5, 5, 6,  7,  7,  7,  6,  5,  6,  8]]
-weights0 = [1, 4, 6, 7, 8, 10, 12, 14, 15, 17, 18, 20, 24, 25, 29, 30, 31, 33, 35, 37, 38, 39, 42, 43, 44, 45]
-weights2 = [3, 5, 11, 16, 23]
+weights = np.array([7, 8, 5, 0, 3, 4, 0, 0, 5, 0,
+    5, 1, 0, 3, 0, 5, 0, 0, 0, 5,
+    7, 2, 0, 0, 0, 7, 0, 5, 0, 3,
+    3, 2, 1, 3, 6, 2, 0, 0, 0, 0,
+    2, 5, 6, 1, 5])
 
-for n in weights0:
-    prblty[n-1] = 0
-for n in weights2:
-    prblty[n-1] = 2
-prblty = prblty / prblty.sum()
+prblty = weights / weights.sum()
 
 for trial in range(num_games):
     rots = np.random.choice(numbers, 6, False, p=prblty)

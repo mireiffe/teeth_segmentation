@@ -146,18 +146,13 @@ class InitContour():
         lmk = self.getLandMarks(phi_lmk, area=5)
         self.phi_lmk = self.rein_w5.getSDF(.5 - (lmk[np.newaxis, ...] < 0))
 
-        plt.figure(); plt.imshow(self.per, 'gray')
-        for ph in self.phi_lmk:
-            plt.contour(ph, levels=[0], colors='lime', linewidths=3)
-        mts.savecfg('img0_lmk.png')
-
         # bring them back
-        self.phi_back = self.bringBack(self.phi_lmk, self.per, gap=8, dt=.3, mu=0.1, nu=.1, reinterm=10, visterm=1, tol=2, max_iter=1500)
+        self.phi_back = self.bringBack(self.phi_lmk, self.per, gap=6, dt=.3, mu=.5, nu=.1, reinterm=10, visterm=1, tol=2, max_iter=1500)
 
         plt.figure(); plt.imshow(self.per, 'gray')
         for ph in self.phi_back:
             plt.contour(ph, levels=[0], colors='lime', linewidths=3)
-        mts.savecfg('img0_back.png')
+        #mts.savecfg('img0_back.png')
 
         # separate level sets 
         reg_sep = self.sepRegions(self.phi_back)
@@ -165,8 +160,8 @@ class InitContour():
 
         # initials
         _per = cv2.dilate(self.per, np.ones((3, 3)))
-        # phi_init = self.evolve(phi_sep, _per, dt=.3, mu=2, nu=.5, reinterm=3, visterm=3, tol=2, max_iter=200)
-        phi_init = self.evolve(phi_sep, self.per, dt=.3, mu=3, nu=.5, reinterm=3, visterm=3, tol=2, max_iter=200)
+        phi_init = self.evolve(phi_sep, _per, dt=.3, mu=2, nu=.5, reinterm=3, visterm=3, tol=2, max_iter=200)
+        # phi_init = self.evolve(phi=phi_sep, wall=self.per, dt=.3, mu=3, nu=.5, reinterm=3, visterm=3, tol=2, max_iter=200)
 
         self.phi0 = phi_init
         return
@@ -207,8 +202,8 @@ class InitContour():
         phi0 = np.copy(phi)
         k = 0
         cmap = plt.cm.get_cmap('gist_rainbow', len(phi))
+        dist = 1
         while True:
-            dist = 1
             regs = np.where(phi < dist, phi - dist, 0)
             all_regs = regs.sum(axis=0)
             Fc = (- (all_regs - regs) - 1)
@@ -237,7 +232,7 @@ class InitContour():
                     break
 
             k += 1
-            phi = mts.remove_pos_lvset(phi)
+            phi = mts.remove_pos_lvset(phi)[0]
             phi0 = phi
         return phi
 
