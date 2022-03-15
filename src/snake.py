@@ -29,14 +29,14 @@ class Snake():
 
     def snake(self):
         # self.phi0 = self.phi0[2:3]
-        self.phi0 = [self.phi0[i] for i in [2, 0, 1, 3, 9]]
+        self.phi0 = [self.phi0[i] for i in [2, 0, 1]]
         # self.img = self.img[85:155, 110:163, ...]
         # self.bar_er = self.bar_er[85:155, 110:163]
         # self.erfa = self.erfa[85:155, 110:163]
         # self.fa = self.fa[85:155, 110:163, ...]
 
         dt = 0.2
-        mu = 2
+        mu = 1
         n_phis = len(self.phi0)
         cmap = plt.cm.get_cmap('gist_ncar', n_phis)
 
@@ -65,7 +65,7 @@ class Snake():
         k = 0
         while True:
             k += 1
-            if k % 4 == 0:
+            if k % 3 == 0:
                 phis = Rein.getSDF(np.where(phis < 0, -1., 1.))
                 # phis = Rein.getSDF(phis)
 
