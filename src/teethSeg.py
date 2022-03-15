@@ -147,7 +147,7 @@ class InitContour():
         self.phi_lmk = self.rein_w5.getSDF(.5 - (lmk[np.newaxis, ...] < 0))
 
         # bring them back
-        self.phi_back = self.bringBack(self.phi_lmk, self.per, gap=6, dt=.3, mu=.5, nu=.1, reinterm=10, visterm=1, tol=2, max_iter=1500)
+        self.phi_back = self.bringBack(self.phi_lmk, self.per, gap=7, dt=.3, mu=.5, nu=.1, reinterm=10, visterm=1, tol=2, max_iter=1500)
 
         plt.figure(); plt.imshow(self.per, 'gray')
         for ph in self.phi_back:
@@ -172,13 +172,15 @@ class InitContour():
         self.per = self.removeShorts(self.per, param_sz=100)
 
     def getLandMarks(self, phi0, area):
+        m_phi = np.where(mts.local_minima(phi0), phi0, 0)
         phi = np.copy(phi0)
         while True:
             _lbl = label(phi < 0)
             _reg = np.zeros_like(_lbl)
             for l in np.unique(_lbl)[1:]:
                 _r = np.where(_lbl == l, True, False)
-                if np.min(phi * _r) <= -area:
+                # if np.min(phi * _r) <= np.minimum(-area, np.min(m_phi*_r) / 2):
+                if np.min(phi * _r) <= np.min(m_phi*_r) / 2:
                     _reg += _r
             if _reg.sum() == 0:
                 break
@@ -238,12 +240,14 @@ class InitContour():
 
     def bringBack(self, phi, per, gap, dt, mu, nu, reinterm, visterm, tol, max_iter):
         wall = mts.gaussfilt(cv2.dilate(per, np.ones((2*gap + 1, 2*gap + 1))), sig=1)
-        # lbl_per = label(per, background=1, connectivity=1)
-        lbl_per = label(np.where(phi[0] < 0, 1, 0), background=0, connectivity=1)
+        lbl_per = label(per, background=1, connectivity=1)
+        # lbl_per = label(np.where(phi[0] < 0, 1, 0), background=0, connectivity=1)
         for l in np.unique(lbl_per)[1:]:
             _r = np.where(lbl_per == l)
             if (wall > 0.01)[_r].sum() == len(_r[0]):
                 wall[_r] = 0
+
+        wall = np.where(phi < 0, 0, wall)
 
         phi0 = np.copy(phi)
         k = 0
@@ -266,7 +270,8 @@ class InitContour():
                 print(setmn)
                 if (setmn  < tol) or (k > max_iter):
                     break
-                phi = self.rein_w5.getSDF(np.where(phi < 0.1, -1., 1.))
+                # phi = self.rein_w5.getSDF(np.where(phi < 0.1, -1., 1.))
+                phi = self.rein_w5.getSDF(np.where(phi < 0, -1., 1.))
             k += 1
             phi0 = phi
 
