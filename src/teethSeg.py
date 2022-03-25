@@ -147,11 +147,11 @@ class InitContour():
         self.phi_lmk = self.rein_w5.getSDF(.5 - (lmk[np.newaxis, ...] < 0))
 
         # bring them back
-        self.phi_back = self.bringBack(self.phi_lmk, self.per, gap=7, dt=.3, mu=.5, nu=.1, reinterm=10, visterm=1, tol=2, max_iter=1500)
+        self.phi_back = self.bringBack(self.phi_lmk, self.per, gap=8, dt=.3, mu=1, nu=.1, reinterm=10, visterm=1, tol=2, max_iter=1500)
 
-        plt.figure(); plt.imshow(self.per, 'gray')
-        for ph in self.phi_back:
-            plt.contour(ph, levels=[0], colors='lime', linewidths=3)
+        # plt.figure(); plt.imshow(self.per, 'gray')
+        # for ph in self.phi_back:
+        #     plt.contour(ph, levels=[0], colors='lime', linewidths=3)
         #mts.savecfg('img0_back.png')
 
         # separate level sets 
@@ -218,11 +218,15 @@ class InitContour():
                 plt.cla()
                 plt.imshow(wall, 'gray')
                 for i, ph in enumerate(phi):
-                    plt.contour(ph, levels=[0], colors=[cmap(i)], linewidth=1.2)
+                    # plt.contour(ph, levels=[0], colors=[cmap(i)], linewidth=1.2)
+                    plt.contour(ph, levels=[0], colors='lime', linewidth=2)
                 # if k % (2*visterm) == 0:
                 #     mts.savecfg(f'ppt{k // (2*visterm):03d}.png')
                 plt.title(f'iter = {k:d}')
                 plt.pause(.1)
+
+                plt.title('')
+                mts.savecfg(f'ppt/siamis22/fore/fore{k:04d}')
 
             if k % reinterm == 0:
                 reg0 = np.where(phi0 < 0, 1, 0)
@@ -245,7 +249,7 @@ class InitContour():
         for l in np.unique(lbl_per)[1:]:
             _r = np.where(lbl_per == l)
             if (wall > 0.01)[_r].sum() == len(_r[0]):
-                wall[_r] = 0
+                wall[_r] = 1/(1-nu)
 
         wall = np.where(phi < 0, 0, wall)
 
@@ -259,9 +263,13 @@ class InitContour():
                 plt.figure(1)
                 plt.cla()
                 plt.imshow(self.per, 'gray')
-                plt.contour(phi[0], levels=[0], colors='lime', linewidth=1.2)
+                # plt.contour(phi[0], levels=[0], colors='lime', linewidth=1.2)
+                plt.contour(phi[0], levels=[0], colors='lime', linewidth=2)
                 plt.title(f'iter = {k:d}')
                 plt.pause(.1)
+
+                plt.title('')
+                mts.savecfg(f'ppt/siamis22/back/back{k:04d}')
 
             if k % reinterm == 0:
                 reg0 = np.where(phi0 < 0, 1, 0)
@@ -392,7 +400,7 @@ class Snake():
 
     def snake(self):
         dt = 0.2
-        mu = 3
+        mu = 2
         reinterm = 3
 
         n_phis = len(self.phi0)
@@ -499,13 +507,31 @@ class IdRegion():
 
     def regClass(self):
         lbl_inreg = self.removeBG(self.lbl_reg)
-        lbl_kapp = self.regClassKapp(lbl_inreg)
-        lbl_intia = self.regInertia(lbl_kapp)
+        # lbl_kapp = self.regClassKapp(lbl_inreg)
+        # lbl_intia = self.regInertia(lbl_kapp)
 
-        cand_rm = self.candVLine(lbl_intia)
-        lbl_vl = self.regClassVLine(self.img, lbl_intia, cand_rm)
-        lbl_sd = self.removeSide(self.img, lbl_vl)
+        # cand_rm = self.candVLine(lbl_intia)
+        # lbl_vl = self.regClassVLine(self.img, lbl_intia, cand_rm)
+
+        lbl_thres = self.thresEnhanced(self.img, lbl_inreg)
+        lbl_sd = self.removeSide(self.img, lbl_thres)
         return lbl_sd
+
+    def thresEnhanced(self, img, lbl, mu=0.3):
+        R, G, B = img[..., 0], img[..., 1], img[..., 2]
+        en_img = np.where(R < 1E-02, 0, G / R) - mu*B
+
+        dist_reg = en_img >= 1E-03
+
+        thres = en_img > np.mean(en_img, where=dist_reg) + 0.25 * np.std(en_img, where=dist_reg)
+
+        res = np.zeros_like(lbl)
+        for l in np.unique(lbl[1:]):
+            _r = (lbl == l)
+            if (_r * thres).sum() > .75 * _r.sum():
+                res = np.where(_r, l, res)
+
+        return res
 
     @staticmethod
     def removeBG(lbl):
