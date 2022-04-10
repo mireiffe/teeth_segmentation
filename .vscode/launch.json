@@ -15,8 +15,8 @@
                 // "--id_reg",
                 // "--ALL",
                 "--pre_er",
-                // "--refine",
-                // "--snake",
+                "--refine",
+                "--snake",
                 // "--img", "-3",
                 "--device", "cuda", "1",
                 "--cfg", "cfg/inference.ini"

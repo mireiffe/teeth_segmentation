@@ -106,11 +106,11 @@ class Snake():
                     if len(_pr[0]) == self.m * self.n:
                         continue
                     if i == 0:
-                        plt.contour(ph[85:152, 140:166], levels=[0], colors='lime', linewidths=6)
+                        plt.contour(ph[85:152, 140:166], levels=[0], colors='lime', linewidths=3)
                     elif i == 1:
-                        plt.contour(ph[85:152, 140:166], levels=[0], colors='blue', linewidths=6)
+                        plt.contour(ph[85:152, 140:166], levels=[0], colors='blue', linewidths=3)
                     else:
-                        plt.contour(ph[85:152, 140:166], levels=[0], colors='red', linewidths=6)
+                        plt.contour(ph[85:152, 140:166], levels=[0], colors='red', linewidths=3)
                 # plt.title(f'iter = {k:d}')
                 # plt.show()
                 mts.savecfg(f'/home/users/mireiffe/Documents/Python/TeethSeg/forpaper/ksiam_evolve_ex2/ex{k}')
