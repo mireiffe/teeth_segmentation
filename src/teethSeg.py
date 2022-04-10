@@ -168,8 +168,9 @@ class InitContour():
 
     def preset(self):
         self.wid_er = self.measureWidth()
-        self.per = self.removeHoles(self.per0, param_sz=100)
-        self.per = self.removeShorts(self.per, param_sz=100)
+        self.per = np.copy(self.per0)
+        # self.per = self.removeHoles(self.per0, param_sz=100)
+        # self.per = self.removeShorts(self.per, param_sz=100)
 
     def getLandMarks(self, phi0, area):
         m_phi = np.where(mts.local_minima(phi0), phi0, 0)
@@ -519,11 +520,11 @@ class IdRegion():
 
     def thresEnhanced(self, img, lbl, mu=0.3):
         R, G, B = img[..., 0], img[..., 1], img[..., 2]
-        en_img = np.where(R < 1E-02, 0, G / R) - mu*B
+        en_img = np.where(R < 1E-01, 0, G / R) - mu*B
 
         dist_reg = en_img >= 1E-03
 
-        thres = en_img > np.mean(en_img, where=dist_reg) + 0.25 * np.std(en_img, where=dist_reg)
+        thres = en_img > np.mean(en_img, where=dist_reg) + 0.0 * np.std(en_img, where=dist_reg)
 
         res = np.zeros_like(lbl)
         for l in np.unique(lbl[1:]):
