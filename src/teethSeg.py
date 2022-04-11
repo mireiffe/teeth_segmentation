@@ -160,8 +160,8 @@ class InitContour():
 
         # initials
         _per = cv2.dilate(self.per, np.ones((3, 3)))
-        phi_init = self.evolve(phi_sep, _per, dt=.3, mu=2, nu=.5, reinterm=3, visterm=3, tol=2, max_iter=200)
-        # phi_init = self.evolve(phi=phi_sep, wall=self.per, dt=.3, mu=3, nu=.5, reinterm=3, visterm=3, tol=2, max_iter=200)
+        # phi_init = self.evolve(phi_sep, _per, dt=.3, mu=2, nu=.5, reinterm=3, visterm=3, tol=2, max_iter=200)
+        phi_init = self.evolve(phi_sep, self.per, dt=.3, mu=1, nu=.5, reinterm=3, visterm=3, tol=2, max_iter=200)
 
         self.phi0 = phi_init
         return
