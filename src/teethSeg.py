@@ -147,12 +147,12 @@ class InitContour():
         self.phi_lmk = self.rein_w5.getSDF(.5 - (lmk[np.newaxis, ...] < 0))
 
         # bring them back
-        self.phi_back = self.bringBack(self.phi_lmk, self.per, gap=8, dt=.3, mu=1, nu=.1, reinterm=10, visterm=1, tol=2, max_iter=1500)
+        self.phi_back = self.bringBack(self.phi_lmk, self.per, gap=8, dt=.3, mu=.1, nu=.1, reinterm=10, visterm=50, tol=2, max_iter=1500)
 
         # plt.figure(); plt.imshow(self.per, 'gray')
         # for ph in self.phi_back:
         #     plt.contour(ph, levels=[0], colors='lime', linewidths=3)
-        #mts.savecfg('img0_back.png')
+        #mts.savecfg('img13_back.png')
 
         # separate level sets 
         reg_sep = self.sepRegions(self.phi_back)
@@ -250,9 +250,10 @@ class InitContour():
         for l in np.unique(lbl_per)[1:]:
             _r = np.where(lbl_per == l)
             if (wall > 0.01)[_r].sum() == len(_r[0]):
+                # wall[_r] = 1/(1-nu)
                 wall[_r] = 1/(1-nu)
 
-        wall = np.where(phi < 0, 0, wall)
+        wall = np.where(phi < .1, 0, wall)
 
         phi0 = np.copy(phi)
         k = 0
@@ -279,8 +280,8 @@ class InitContour():
                 print(setmn)
                 if (setmn  < tol) or (k > max_iter):
                     break
-                # phi = self.rein_w5.getSDF(np.where(phi < 0.1, -1., 1.))
-                phi = self.rein_w5.getSDF(np.where(phi < 0, -1., 1.))
+                phi = self.rein_w5.getSDF(np.where(phi < 0.2, -1., 1.))
+                # phi = self.rein_w5.getSDF(np.where(phi < 0, -1., 1.))
             k += 1
             phi0 = phi
 

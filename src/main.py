@@ -25,7 +25,7 @@ if __name__ == '__main__':
     # imgs = args.imgs if args.imgs else [0, 1, 5, 8, 13, 18]
     # imgs = args.imgs if args.imgs else [9, 10, 12, 14, 17]
     # imgs = args.imgs if args.imgs else [20, 21, 30, 31, 32, 33]
-    imgs = args.imgs if args.imgs else [13]
+    imgs = args.imgs if args.imgs else [0]
 
     dir_result = join('results', f'er_net/{today}{label_test}/')
     mts.makeDir(dir_result)
