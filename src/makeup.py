@@ -126,6 +126,7 @@ class TeethSeg():
         self.sts.imshows([per, SNK.use_er], 'er_useer.png', cmaps=['gray', jet_alpha], alphas=[None, None])
         self.sts.imshows([per, SNK.er], 'er_per.png', cmaps=['gray', jet_alpha], alphas=[None, None])
         self.sts.imcontour(img, phi_res, 'phires_img.pdf')
+        self.sts.imcontour(per, phi_res, 'phires_per.pdf')
         self.sts.imcontour(SNK.er, phi0, 'phi0_er.png')
         self.sts.imcontour(SNK.er, phi_res, 'phires_er.png')
         return 0

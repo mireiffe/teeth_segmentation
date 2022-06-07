@@ -7,10 +7,10 @@ import myTools as mts
 from makeup import get_args, TeethSeg
 
 # global variables
-# label_test = '_1'
-label_test = ''
+label_test = '_testmodel'
+# label_test = ''
 today = time.strftime("%y%m%d", time.localtime(time.time()))
-# today = '220409'
+today = '220528'
 
 if __name__ == '__main__':
     args = get_args()
@@ -21,7 +21,7 @@ if __name__ == '__main__':
         args.id_region = True
 
     imgs = args.imgs if args.imgs else [0, 1, 2, 5, 8, 9, 10, 11, 12, 13, 14, 17, 18, 20, 21, 30, 32, 33]
-    imgs = args.imgs if args.imgs else [0, 1, 5, 8, 13, 18, 9, 10, 12, 14, 17, 20, 21, 30, 31, 32, 33]
+    # imgs = args.imgs if args.imgs else [0, 1, 5, 8, 13, 18, 9, 10, 12, 14, 17, 20, 21, 30, 31, 32, 33]
     # imgs = args.imgs if args.imgs else [0, 1, 5, 8, 13, 18]
     # imgs = args.imgs if args.imgs else [9, 10, 12, 14, 17]
     # imgs = args.imgs if args.imgs else [20, 21, 30, 31, 32, 33]
